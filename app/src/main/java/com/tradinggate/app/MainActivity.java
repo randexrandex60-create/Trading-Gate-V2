@@ -388,11 +388,35 @@ p.addView(brand, brandParams);
         LinearLayout p = pageRoot();
         p.setPadding(0, 0, 0, dp(18));
 
-       android.widget.ImageView hero = new android.widget.ImageView(this);
-hero.setImageResource(R.drawable.trading_gate_cover);
-hero.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-p.addView(hero, new LinearLayout.LayoutParams(-1, dp(560)));
+       android.widget.FrameLayout hero = new android.widget.FrameLayout(this);
 
+android.widget.ImageView background =
+        new android.widget.ImageView(this);
+
+background.setImageResource(
+        R.drawable.trading_gate_background
+);
+
+background.setScaleType(
+        android.widget.ImageView.ScaleType.CENTER_CROP
+);
+
+hero.addView(
+        background,
+        new android.widget.FrameLayout.LayoutParams(-1, -1)
+);
+
+FireflyView fireflies = new FireflyView(this);
+
+hero.addView(
+        fireflies,
+        new android.widget.FrameLayout.LayoutParams(-1, -1)
+);
+
+p.addView(
+        hero,
+        new LinearLayout.LayoutParams(-1, dp(560))
+);
         TextView brand = centerText("TRADING", 27, WHITE);
         brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         brand.setLetterSpacing(.16f);
@@ -1517,9 +1541,101 @@ p.addView(hero, new LinearLayout.LayoutParams(-1, dp(560)));
     // CUSTOM VISUALS
     // =========================================================
 
-    class GateHeroView extends View {
-        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        Path path = new Path();
+  class FireflyView extends View {
+
+    Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
+    Paint core = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    float[] x = new float[18];
+    float[] y = new float[18];
+    float[] size = new float[18];
+    float[] speed = new float[18];
+    float[] phase = new float[18];
+
+    FireflyView(Context c) {
+        super(c);
+
+        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+
+        for (int i = 0; i < 18; i++) {
+            x[i] = (float) Math.random();
+            y[i] = 0.08f + (float) Math.random() * 0.78f;
+
+            size[i] = 3.0f + (float) Math.random() * 3.0f;
+            speed[i] = 0.15f + (float) Math.random() * 0.30f;
+            phase[i] = (float) Math.random() * 6.28f;
+        }
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+
+        float w = getWidth();
+        float h = getHeight();
+
+        long now = System.currentTimeMillis();
+        float time = now / 1000f;
+
+        for (int i = 0; i < 18; i++) {
+
+            float px = x[i] * w;
+
+            float py =
+                    y[i] * h
+                    + (float) Math.sin(
+                            time * speed[i] + phase[i]
+                    ) * dp(18);
+
+            px +=
+                    (float) Math.sin(
+                            time * 0.35f + phase[i]
+                    ) * dp(20);
+
+            float pulse =
+                    0.65f
+                    + 0.35f * (float) Math.sin(
+                            time * 1.8f + phase[i]
+                    );
+
+            float r = dp((int) size[i]) * pulse;
+
+            // glow luar
+            glow.setStyle(Paint.Style.FILL);
+            glow.setColor(Color.rgb(255, 70, 160));
+            glow.setAlpha(90);
+            glow.setShadowLayer(
+                    dp(12),
+                    0,
+                    0,
+                    Color.rgb(255, 45, 150)
+            );
+
+            canvas.drawCircle(
+                    px,
+                    py,
+                    r * 2.2f,
+                    glow
+            );
+
+            glow.clearShadowLayer();
+
+            // inti cahaya
+            core.setStyle(Paint.Style.FILL);
+            core.setColor(Color.rgb(255, 185, 215));
+            core.setAlpha((int)(190 + 65 * pulse));
+
+            canvas.drawCircle(
+                    px,
+                    py,
+                    r,
+                    core
+            );
+        }
+
+        postInvalidateOnAnimation();
+    }
+}
 
         GateHeroView(Context c) {
             super(c);
