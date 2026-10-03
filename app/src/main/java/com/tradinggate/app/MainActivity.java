@@ -355,9 +355,16 @@ public class MainActivity extends Activity {
 
     void pageHeader(LinearLayout p, String subtitle) {
         TextView brand = centerText("TRADING GATE", 20, WHITE);
-        brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        brand.setLetterSpacing(.08f);
-        p.addView(brand);
+brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+brand.setLetterSpacing(.08f);
+
+LinearLayout.LayoutParams brandParams =
+        new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+brandParams.topMargin = dp(14);
+p.addView(brand, brandParams);
 
         TextView sub = centerText(subtitle, 9, PINK);
         sub.setLetterSpacing(.22f);
