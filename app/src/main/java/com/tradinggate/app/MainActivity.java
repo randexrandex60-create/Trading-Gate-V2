@@ -281,7 +281,7 @@ background.setScaleType(
         android.widget.ImageView.ScaleType.CENTER_CROP
 );
 
-background.setAlpha(0.22f);
+background.setAlpha(0.45f);
 
 backgroundLayer.addView(
         background,
@@ -297,7 +297,7 @@ android.view.View darkOverlay =
 
 darkOverlay.setBackgroundColor(
         android.graphics.Color.argb(
-                150,
+                80,
                 0,
                 0,
                 0
