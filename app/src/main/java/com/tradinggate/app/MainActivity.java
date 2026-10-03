@@ -145,15 +145,10 @@ public class MainActivity extends Activity {
 
         buildShell();
 
-        if (!pref.getBoolean("intro_seen", false)) {
+       
             showingIntro = true;
             showLanding();
-        } else {
-            showHome();
-            restoreSession();
-        }
-    }
-
+    
     @Override
     protected void onResume() {
         super.onResume();
