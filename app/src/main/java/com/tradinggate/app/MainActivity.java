@@ -134,7 +134,10 @@ public class MainActivity extends Activity {
 
         r.addView(section("1-2. KONDISI DIRI"));
 
-        r.addView(text("Apakah saya sedang sibuk / ada kerjaan lain?", 15));
+        r.addView(text(
+                "Apakah saya sedang sibuk / ada kerjaan lain?",
+                15
+        ));
 
         RadioGroup g1 = new RadioGroup(this);
 
@@ -150,32 +153,30 @@ public class MainActivity extends Activity {
         g1.addView(busy);
         r.addView(g1);
 
-        // Pilihan kondisi sibuk bisa dipilih dan dibatalkan
         final RadioButton[] selectedBusy = {null};
 
         notBusy.setOnClickListener(v -> {
-
             if (selectedBusy[0] == notBusy) {
                 g1.clearCheck();
                 selectedBusy[0] = null;
             } else {
                 selectedBusy[0] = notBusy;
-                g1.check(notBusy.getId());
             }
         });
 
         busy.setOnClickListener(v -> {
-
             if (selectedBusy[0] == busy) {
                 g1.clearCheck();
                 selectedBusy[0] = null;
             } else {
                 selectedBusy[0] = busy;
-                g1.check(busy.getId());
             }
         });
 
-        r.addView(text("Apakah saya sedang capek / emosi?", 15));
+        r.addView(text(
+                "Apakah saya sedang capek / emosi?",
+                15
+        ));
 
         RadioGroup g2 = new RadioGroup(this);
 
@@ -191,28 +192,23 @@ public class MainActivity extends Activity {
         g2.addView(tired);
         r.addView(g2);
 
-        // Pilihan kondisi capek/emosi bisa dipilih dan dibatalkan
         final RadioButton[] selectedTired = {null};
 
         notTired.setOnClickListener(v -> {
-
             if (selectedTired[0] == notTired) {
                 g2.clearCheck();
                 selectedTired[0] = null;
             } else {
                 selectedTired[0] = notTired;
-                g2.check(notTired.getId());
             }
         });
 
         tired.setOnClickListener(v -> {
-
             if (selectedTired[0] == tired) {
                 g2.clearCheck();
                 selectedTired[0] = null;
             } else {
                 selectedTired[0] = tired;
-                g2.check(tired.getId());
             }
         });
 
@@ -244,7 +240,10 @@ public class MainActivity extends Activity {
         news = input("Contoh: 20:30 WITA");
         r.addView(news);
 
-        now = text("Waktu WITA sekarang: --:--:--", 13);
+        now = text(
+                "Waktu WITA sekarang: --:--:--",
+                13
+        );
         now.setTextColor(Color.GRAY);
         r.addView(now);
 
@@ -258,8 +257,10 @@ public class MainActivity extends Activity {
 
         liq = check("LIQUIDITY");
         cisd = check("CISD");
-        bos = check("BOS");
-        idm = check("IDM");
+
+        // BOS dan IDM bersifat OPSIONAL
+        bos = check("BOS (opsional)");
+        idm = check("IDM (opsional)");
 
         r.addView(liq);
         r.addView(cisd);
@@ -273,15 +274,21 @@ public class MainActivity extends Activity {
         r.addView(section("11-13. PLAN ENTRY"));
 
         r.addView(text("Plan Entry", 14));
-        entry = input("Contoh: Sell setelah CISD di POI H1");
+        entry = input(
+                "Contoh: Sell setelah CISD di POI H1"
+        );
         r.addView(entry);
 
         r.addView(text("TP", 14));
-        tp = input("Contoh: target harga / pip");
+        tp = input(
+                "Contoh: target harga / pip"
+        );
         r.addView(tp);
 
         r.addView(text("SL", 14));
-        sl = input("Contoh: invalidasi harga / pip");
+        sl = input(
+                "Contoh: invalidasi harga / pip"
+        );
         r.addView(sl);
 
         // =========================
@@ -293,7 +300,10 @@ public class MainActivity extends Activity {
         unlock.setOnClickListener(v -> checkUnlock());
 
         LinearLayout.LayoutParams unlockParams =
-                new LinearLayout.LayoutParams(-1, dp(55));
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(55)
+                );
 
         unlockParams.topMargin = dp(18);
 
@@ -308,7 +318,13 @@ public class MainActivity extends Activity {
         mt5.setEnabled(false);
         mt5.setOnClickListener(v -> open());
 
-        r.addView(mt5, new LinearLayout.LayoutParams(-1, dp(55)));
+        r.addView(
+                mt5,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(55)
+                )
+        );
 
         // =========================
         // APP LOCK
@@ -320,7 +336,9 @@ public class MainActivity extends Activity {
         appLock.setOnClickListener(v -> {
             try {
                 startActivity(
-                        new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        new Intent(
+                                Settings.ACTION_ACCESSIBILITY_SETTINGS
+                        )
                 );
             } catch (Exception e) {
                 Toast.makeText(
@@ -331,7 +349,13 @@ public class MainActivity extends Activity {
             }
         });
 
-        r.addView(appLock, new LinearLayout.LayoutParams(-1, dp(55)));
+        r.addView(
+                appLock,
+                new LinearLayout.LayoutParams(
+                        -1,
+                        dp(55)
+                )
+        );
 
         TextView info = text(
                 "Aktifkan Trading Gate di Pengaturan > Aksesibilitas agar MT5 yang dibuka langsung ikut ditahan saat gate terkunci.",
@@ -352,7 +376,9 @@ public class MainActivity extends Activity {
     void updateNow() {
 
         ZonedDateTime z =
-                ZonedDateTime.now(ZoneId.of("Asia/Makassar"));
+                ZonedDateTime.now(
+                        ZoneId.of("Asia/Makassar")
+                );
 
         now.setText(
                 "Waktu WITA sekarang: " +
@@ -370,8 +396,10 @@ public class MainActivity extends Activity {
 
     String validate() {
 
-        // Harus memilih kondisi sibuk/fokus
-        if (!busy.isChecked() && !notBusy.isChecked()) {
+        // Kondisi sibuk/fokus wajib dipilih
+        if (!busy.isChecked() &&
+                !notBusy.isChecked()) {
+
             return "LOCK: pilih kondisi sibuk/fokus terlebih dahulu.";
         }
 
@@ -379,8 +407,10 @@ public class MainActivity extends Activity {
             return "LOCK: kamu sedang sibuk.";
         }
 
-        // Harus memilih kondisi capek/stabil
-        if (!tired.isChecked() && !notTired.isChecked()) {
+        // Kondisi capek/stabil wajib dipilih
+        if (!tired.isChecked() &&
+                !notTired.isChecked()) {
+
             return "LOCK: pilih kondisi capek/stabil terlebih dahulu.";
         }
 
@@ -388,6 +418,7 @@ public class MainActivity extends Activity {
             return "LOCK: kamu sedang capek / emosi.";
         }
 
+        // H4 H2 H1 wajib
         if (!h4.isChecked() ||
                 !h2.isChecked() ||
                 !h1.isChecked()) {
@@ -395,31 +426,42 @@ public class MainActivity extends Activity {
             return "LOCK: zona H4, H2, H1 harus jelas.";
         }
 
+        // Liquidity wajib
         if (!liq.isChecked()) {
             return "LOCK: Liquidity belum dikonfirmasi.";
         }
 
+        // CISD wajib
         if (!cisd.isChecked()) {
             return "LOCK: CISD belum dikonfirmasi.";
         }
 
-        if (!bos.isChecked()) {
-            return "LOCK: BOS belum dikonfirmasi.";
-        }
+        // BOS dan IDM TIDAK diwajibkan
 
-        if (!idm.isChecked()) {
-            return "LOCK: IDM belum dikonfirmasi.";
-        }
+        // Plan Entry wajib
+        if (entry.getText()
+                .toString()
+                .trim()
+                .isEmpty()) {
 
-        if (entry.getText().toString().trim().isEmpty()) {
             return "LOCK: Plan Entry wajib diisi.";
         }
 
-        if (tp.getText().toString().trim().isEmpty()) {
+        // TP wajib
+        if (tp.getText()
+                .toString()
+                .trim()
+                .isEmpty()) {
+
             return "LOCK: TP wajib diisi.";
         }
 
-        if (sl.getText().toString().trim().isEmpty()) {
+        // SL wajib
+        if (sl.getText()
+                .toString()
+                .trim()
+                .isEmpty()) {
+
             return "LOCK: SL wajib diisi.";
         }
 
@@ -427,10 +469,16 @@ public class MainActivity extends Activity {
         // VALIDASI NEWS WITA
         // =========================
 
-        String s = news.getText().toString().trim().toUpperCase(Locale.ROOT);
+        String s =
+                news.getText()
+                        .toString()
+                        .trim()
+                        .toUpperCase(Locale.ROOT);
+
         s = s.replace("WITA", "").trim();
 
         if (!s.matches("\\d{2}:\\d{2}")) {
+
             return "LOCK: isi jam News Besar dengan format HH:mm atau HH:mm WITA.";
         }
 
@@ -438,17 +486,27 @@ public class MainActivity extends Activity {
         int m;
 
         try {
-            h = Integer.parseInt(s.substring(0, 2));
-            m = Integer.parseInt(s.substring(3, 5));
+
+            h = Integer.parseInt(
+                    s.substring(0, 2)
+            );
+
+            m = Integer.parseInt(
+                    s.substring(3, 5)
+            );
+
         } catch (Exception e) {
+
             return "LOCK: format jam News tidak valid.";
         }
 
         if (h > 23 || m > 59) {
+
             return "LOCK: jam News tidak valid.";
         }
 
-        ZoneId wita = ZoneId.of("Asia/Makassar");
+        ZoneId wita =
+                ZoneId.of("Asia/Makassar");
 
         ZonedDateTime current =
                 ZonedDateTime.now(wita);
@@ -465,11 +523,14 @@ public class MainActivity extends Activity {
         ZonedDateTime unlockTime =
                 newsTime.minusHours(2);
 
+        // Belum masuk window 2 jam
         if (current.isBefore(unlockTime)) {
 
             String jamBuka =
                     unlockTime.format(
-                            DateTimeFormatter.ofPattern("HH:mm")
+                            DateTimeFormatter.ofPattern(
+                                    "HH:mm"
+                            )
                     );
 
             return "LOCK: belum masuk window 2 jam sebelum news. Gate mulai " +
@@ -477,7 +538,9 @@ public class MainActivity extends Activity {
                     " WITA.";
         }
 
+        // News sudah lewat
         if (current.isAfter(newsTime)) {
+
             return "LOCK: waktu News Besar sudah lewat.";
         }
 
@@ -494,8 +557,13 @@ public class MainActivity extends Activity {
 
         if (e != null) {
 
-            status.setText("STATUS: TERKUNCI");
-            status.setTextColor(Color.RED);
+            status.setText(
+                    "STATUS: TERKUNCI"
+            );
+
+            status.setTextColor(
+                    Color.RED
+            );
 
             reason.setText(e);
 
@@ -505,15 +573,24 @@ public class MainActivity extends Activity {
         }
 
         p.edit()
-                .putBoolean("unlocked", true)
+                .putBoolean(
+                        "unlocked",
+                        true
+                )
                 .putLong(
                         "until",
-                        System.currentTimeMillis() + UNLOCK
+                        System.currentTimeMillis()
+                                + UNLOCK
                 )
                 .apply();
 
-        status.setText("STATUS: TERBUKA");
-        status.setTextColor(Color.GREEN);
+        status.setText(
+                "STATUS: TERBUKA"
+        );
+
+        status.setTextColor(
+                Color.GREEN
+        );
 
         reason.setText(
                 "Checklist lolos. Gate aktif 15 menit."
@@ -521,7 +598,9 @@ public class MainActivity extends Activity {
 
         mt5.setEnabled(true);
 
-        unlock.setText("✓ GATE TERBUKA");
+        unlock.setText(
+                "✓ GATE TERBUKA"
+        );
 
         startTimer();
     }
@@ -537,18 +616,28 @@ public class MainActivity extends Activity {
         }
 
         long left =
-                p.getLong("until", 0)
-                        - System.currentTimeMillis();
+                p.getLong(
+                        "until",
+                        0
+                ) -
+                System.currentTimeMillis();
 
         if (left <= 0) {
+
             lock();
+
             return;
         }
 
-        cd = new CountDownTimer(left, 1000) {
+        cd = new CountDownTimer(
+                left,
+                1000
+        ) {
 
             @Override
-            public void onTick(long millisUntilFinished) {
+            public void onTick(
+                    long millisUntilFinished
+            ) {
 
                 long totalSeconds =
                         millisUntilFinished / 1000;
@@ -571,6 +660,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onFinish() {
+
                 lock();
             }
 
@@ -588,12 +678,23 @@ public class MainActivity extends Activity {
         }
 
         p.edit()
-                .putBoolean("unlocked", false)
-                .putLong("until", 0)
+                .putBoolean(
+                        "unlocked",
+                        false
+                )
+                .putLong(
+                        "until",
+                        0
+                )
                 .apply();
 
-        status.setText("STATUS: TERKUNCI");
-        status.setTextColor(Color.RED);
+        status.setText(
+                "STATUS: TERKUNCI"
+        );
+
+        status.setTextColor(
+                Color.RED
+        );
 
         timer.setText("");
 
@@ -603,7 +704,9 @@ public class MainActivity extends Activity {
 
         mt5.setEnabled(false);
 
-        unlock.setText("🔒  CEK & UNLOCK MT5");
+        unlock.setText(
+                "🔒  CEK & UNLOCK MT5"
+        );
 
         h4.setChecked(false);
         h2.setChecked(false);
@@ -611,6 +714,9 @@ public class MainActivity extends Activity {
 
         liq.setChecked(false);
         cisd.setChecked(false);
+
+        // BOS dan IDM opsional,
+        // tetapi tetap dikosongkan saat lock kembali
         bos.setChecked(false);
         idm.setChecked(false);
 
@@ -626,16 +732,27 @@ public class MainActivity extends Activity {
     void restore() {
 
         boolean unlocked =
-                p.getBoolean("unlocked", false);
+                p.getBoolean(
+                        "unlocked",
+                        false
+                );
 
         long until =
-                p.getLong("until", 0);
+                p.getLong(
+                        "until",
+                        0
+                );
 
         if (unlocked &&
                 until > System.currentTimeMillis()) {
 
-            status.setText("STATUS: TERBUKA");
-            status.setTextColor(Color.GREEN);
+            status.setText(
+                    "STATUS: TERBUKA"
+            );
+
+            status.setTextColor(
+                    Color.GREEN
+            );
 
             reason.setText(
                     "Gate masih aktif."
@@ -643,7 +760,9 @@ public class MainActivity extends Activity {
 
             mt5.setEnabled(true);
 
-            unlock.setText("✓ GATE TERBUKA");
+            unlock.setText(
+                    "✓ GATE TERBUKA"
+            );
 
             startTimer();
 
@@ -661,7 +780,9 @@ public class MainActivity extends Activity {
 
         Intent i =
                 getPackageManager()
-                        .getLaunchIntentForPackage(MT5);
+                        .getLaunchIntentForPackage(
+                                MT5
+                        );
 
         if (i != null) {
 
