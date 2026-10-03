@@ -141,7 +141,6 @@ public class MainActivity extends Activity {
         notBusy = new RadioButton(this);
         notBusy.setText("TIDAK — saya fokus");
         notBusy.setTextColor(Color.WHITE);
-        notBusy.setChecked(true);
 
         busy = new RadioButton(this);
         busy.setText("YA — saya sedang sibuk");
@@ -151,6 +150,31 @@ public class MainActivity extends Activity {
         g1.addView(busy);
         r.addView(g1);
 
+        // Pilihan kondisi sibuk bisa dipilih dan dibatalkan
+        final RadioButton[] selectedBusy = {null};
+
+        notBusy.setOnClickListener(v -> {
+
+            if (selectedBusy[0] == notBusy) {
+                g1.clearCheck();
+                selectedBusy[0] = null;
+            } else {
+                selectedBusy[0] = notBusy;
+                g1.check(notBusy.getId());
+            }
+        });
+
+        busy.setOnClickListener(v -> {
+
+            if (selectedBusy[0] == busy) {
+                g1.clearCheck();
+                selectedBusy[0] = null;
+            } else {
+                selectedBusy[0] = busy;
+                g1.check(busy.getId());
+            }
+        });
+
         r.addView(text("Apakah saya sedang capek / emosi?", 15));
 
         RadioGroup g2 = new RadioGroup(this);
@@ -158,7 +182,6 @@ public class MainActivity extends Activity {
         notTired = new RadioButton(this);
         notTired.setText("TIDAK — kondisi stabil");
         notTired.setTextColor(Color.WHITE);
-        notTired.setChecked(true);
 
         tired = new RadioButton(this);
         tired.setText("YA — capek / emosi");
@@ -167,6 +190,31 @@ public class MainActivity extends Activity {
         g2.addView(notTired);
         g2.addView(tired);
         r.addView(g2);
+
+        // Pilihan kondisi capek/emosi bisa dipilih dan dibatalkan
+        final RadioButton[] selectedTired = {null};
+
+        notTired.setOnClickListener(v -> {
+
+            if (selectedTired[0] == notTired) {
+                g2.clearCheck();
+                selectedTired[0] = null;
+            } else {
+                selectedTired[0] = notTired;
+                g2.check(notTired.getId());
+            }
+        });
+
+        tired.setOnClickListener(v -> {
+
+            if (selectedTired[0] == tired) {
+                g2.clearCheck();
+                selectedTired[0] = null;
+            } else {
+                selectedTired[0] = tired;
+                g2.check(tired.getId());
+            }
+        });
 
         // =========================
         // 3-5 ZONA HTF
@@ -322,8 +370,18 @@ public class MainActivity extends Activity {
 
     String validate() {
 
+        // Harus memilih kondisi sibuk/fokus
+        if (!busy.isChecked() && !notBusy.isChecked()) {
+            return "LOCK: pilih kondisi sibuk/fokus terlebih dahulu.";
+        }
+
         if (busy.isChecked()) {
             return "LOCK: kamu sedang sibuk.";
+        }
+
+        // Harus memilih kondisi capek/stabil
+        if (!tired.isChecked() && !notTired.isChecked()) {
+            return "LOCK: pilih kondisi capek/stabil terlebih dahulu.";
         }
 
         if (tired.isChecked()) {
