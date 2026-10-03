@@ -388,8 +388,10 @@ p.addView(brand, brandParams);
         LinearLayout p = pageRoot();
         p.setPadding(0, 0, 0, dp(18));
 
-        GateHeroView hero = new GateHeroView(this);
-        p.addView(hero, new LinearLayout.LayoutParams(-1, dp(560)));
+       android.widget.ImageView hero = new android.widget.ImageView(this);
+hero.setImageResource(R.drawable.trading_gate_cover);
+hero.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+p.addView(hero, new LinearLayout.LayoutParams(-1, dp(560)));
 
         TextView brand = centerText("TRADING", 27, WHITE);
         brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
