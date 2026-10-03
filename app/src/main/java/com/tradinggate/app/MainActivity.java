@@ -3,6 +3,7 @@ package com.tradinggate.app;
 import android.app.Activity;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
@@ -11,404 +12,1365 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.provider.Settings;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.*;
 
-import java.time.ZonedDateTime;
-import java.time.ZoneId;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+/*
+ * TRADING GATE - V3 UI
+ * Design master:
+ * - dark premium / soft dusty pink
+ * - Home / Checklist / Riwayat / Pengaturan
+ * - 5 Gate accesses per WITA day
+ * - daily reset at 08:00 WITA
+ * - each Gate session = 15 minutes
+ * - Liquidity + CISD mandatory
+ * - BOS + IDM optional
+ * - Entry Plan uses tap choices
+ *
+ * MT5 SL auto-detection is intentionally NOT connected yet.
+ * The SL counter remains a placeholder until the MT5/VPS layer is added.
+ */
 public class MainActivity extends Activity {
 
     static final String MT5 = "net.metaquotes.metatrader5";
-    static final String PREF = "gate";
-    static final long UNLOCK = 15 * 60 * 1000L;
+    static final String PREF = "trading_gate_v3";
+    static final String TZ = "Asia/Makassar";
 
-    static final int BG = Color.rgb(10,10,12);
-    static final int CARD = Color.rgb(20,19,23);
-    static final int CARD2 = Color.rgb(27,25,30);
-    static final int PINK = Color.rgb(224,151,181);
-    static final int PINK_SOFT = Color.rgb(244,193,211);
-    static final int WHITE = Color.rgb(248,245,247);
-    static final int MUTED = Color.rgb(158,151,158);
-    static final int GREEN = Color.rgb(145,218,174);
-    static final int RED = Color.rgb(235,116,139);
+    static final long SESSION_MS = 15 * 60 * 1000L;
+    static final int MAX_ACCESS = 5;
+    static final int MAX_SL = 3;
 
-    SharedPreferences p;
-    TextView status, reason, timer, now;
-    Button unlock, mt5;
-    RadioButton busy, notBusy, tired, notTired;
-    CheckBox h4,h2,h1,liq,cisd,bos,idm;
-    EditText news,entry,tp,sl;
-    CountDownTimer cd;
+    // ---------- COLORS ----------
+    final int BG = Color.rgb(7, 8, 10);
+    final int CARD = Color.rgb(16, 17, 20);
+    final int CARD_2 = Color.rgb(23, 22, 27);
+    final int BORDER = Color.rgb(59, 51, 61);
+    final int PINK = Color.rgb(244, 113, 158);
+    final int PINK_SOFT = Color.rgb(255, 174, 202);
+    final int PINK_DARK = Color.rgb(83, 36, 57);
+    final int WHITE = Color.rgb(248, 246, 248);
+    final int MUTED = Color.rgb(153, 149, 157);
+    final int GREEN = Color.rgb(135, 220, 169);
+    final int RED = Color.rgb(242, 104, 133);
+
+    SharedPreferences pref;
+
+    LinearLayout root;
+    FrameLayout content;
+    LinearLayout bottomNav;
+
+    TextView homeStatus, homeStatusSub, accessValue, slValue, resetValue;
+    TextView checklistProgress, sessionTimer, sessionStatus;
+    Button homeOpenButton, confirmButton, mt5Button;
+
+    // Entry plan choices
+    String direction = "";
+    String zone = "";
+    String timeframe = "";
+    String rr = "";
+    boolean liquidity = false;
+    boolean cisd = false;
+    boolean bos = false;
+    boolean idm = false;
+    boolean newsChecked = false;
+    boolean conditionOk = false;
+
+    CountDownTimer timer;
+
+    final DateTimeFormatter DATE_KEY =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US);
+
+    final DateTimeFormatter DATE_DISPLAY =
+            DateTimeFormatter.ofPattern("EEE, d MMM yyyy", Locale.US);
 
     int dp(int n) {
-        return (int)(n * getResources().getDisplayMetrics().density + .5f);
+        return (int) (n * getResources().getDisplayMetrics().density + 0.5f);
     }
 
-    GradientDrawable shape(int color, int stroke, int width, int radius) {
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(color);
-        g.setCornerRadius(dp(radius));
-        if (width > 0) g.setStroke(dp(width), stroke);
-        return g;
+    int accessCount() {
+        checkDailyReset();
+        return pref.getInt("access_count", 0);
     }
 
-    TextView tv(String s, float size) {
+    int slCount() {
+        checkDailyReset();
+        return pref.getInt("sl_count", 0);
+    }
+
+    String gateDayKey() {
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.of(TZ));
+        LocalDate d = now.toLocalDate();
+
+        // A trading day begins at 08:00 WITA.
+        if (now.toLocalTime().isBefore(LocalTime.of(8, 0))) {
+            d = d.minusDays(1);
+        }
+        return d.format(DATE_KEY);
+    }
+
+    void checkDailyReset() {
+        String key = gateDayKey();
+        String saved = pref.getString("gate_day", "");
+
+        if (!key.equals(saved)) {
+            pref.edit()
+                    .putString("gate_day", key)
+                    .putInt("access_count", 0)
+                    .putInt("sl_count", 0)
+                    .apply();
+        }
+    }
+
+    @Override
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
+
+        pref = getSharedPreferences(PREF, Context.MODE_PRIVATE);
+        checkDailyReset();
+
+        buildShell();
+        showHome();
+
+        restoreSession();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pref != null) {
+            checkDailyReset();
+            refreshHome();
+            restoreSession();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (timer != null) {
+            timer.cancel();
+        }
+        super.onDestroy();
+    }
+
+    // =========================================================
+    // BASIC UI
+    // =========================================================
+
+    TextView text(String value, float size) {
         TextView v = new TextView(this);
-        v.setText(s);
+        v.setText(value);
         v.setTextColor(WHITE);
         v.setTextSize(size);
         return v;
     }
 
+    GradientDrawable rounded(int fill, int stroke, int strokeWidth, int radius) {
+        GradientDrawable g = new GradientDrawable();
+        g.setColor(fill);
+        g.setCornerRadius(dp(radius));
+        if (strokeWidth > 0) {
+            g.setStroke(dp(strokeWidth), stroke);
+        }
+        return g;
+    }
+
     LinearLayout card() {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
-        c.setPadding(dp(15),dp(14),dp(15),dp(14));
-        c.setBackground(shape(CARD,Color.rgb(55,49,57),1,18));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2);
+        c.setPadding(dp(15), dp(14), dp(15), dp(14));
+        c.setBackground(rounded(CARD, BORDER, 1, 18));
+
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(-1, -2);
         lp.bottomMargin = dp(12);
         c.setLayoutParams(lp);
+
         return c;
     }
 
-    void heading(LinearLayout c, String title, String sub) {
-        TextView a = tv(title,16);
-        a.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        a.setTextColor(PINK_SOFT);
-        c.addView(a);
-        TextView b = tv(sub,11);
-        b.setTextColor(MUTED);
-        b.setPadding(0,dp(3),0,dp(10));
-        c.addView(b);
-    }
-
-    CheckBox check(String s) {
-        CheckBox x = new CheckBox(this);
-        x.setText(s);
-        x.setTextColor(WHITE);
-        x.setTextSize(14);
-        x.setButtonTintList(new ColorStateList(
-                new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},
-                new int[]{PINK,Color.rgb(100,95,102)}));
-        x.setPadding(0,dp(2),0,dp(2));
-        return x;
-    }
-
-    void radioStyle(RadioButton r) {
-        r.setTextColor(WHITE);
-        r.setTextSize(14);
-        r.setButtonTintList(new ColorStateList(
-                new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},
-                new int[]{PINK,Color.rgb(100,95,102)}));
-    }
-
-    EditText input(String hint) {
-        EditText e = new EditText(this);
-        e.setHint(hint);
-        e.setHintTextColor(Color.rgb(105,99,106));
-        e.setTextColor(WHITE);
-        e.setTextSize(14);
-        e.setSingleLine(true);
-        e.setPadding(dp(12),0,dp(12),0);
-        e.setBackground(shape(CARD2,Color.rgb(60,54,62),1,12));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,dp(47));
-        lp.bottomMargin = dp(8);
-        e.setLayoutParams(lp);
-        return e;
-    }
-
-    Button action(String text) {
+    Button button(String label) {
         Button b = new Button(this);
-        b.setText(text);
-        b.setTextSize(14);
+        b.setText(label);
+        b.setTextSize(13);
         b.setTextColor(WHITE);
         b.setAllCaps(false);
         b.setGravity(Gravity.CENTER);
-        b.setBackground(shape(CARD2,Color.rgb(65,57,65),1,14));
+        b.setPadding(dp(8), 0, dp(8), 0);
+        b.setBackground(rounded(CARD_2, BORDER, 1, 14));
         return b;
     }
 
-    @Override
-    public void onCreate(Bundle b) {
-        super.onCreate(b);
-        p = getSharedPreferences(PREF,0);
-        build();
-        restore();
+    Button pinkButton(String label) {
+        Button b = button(label);
+        b.setText(label);
+        b.setTextColor(Color.rgb(28, 18, 23));
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setTextSize(14);
+        b.setBackground(rounded(PINK_SOFT, PINK, 0, 15));
+        return b;
     }
 
-    void build() {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setBackgroundColor(BG);
+    TextView title(String value) {
+        TextView v = text(value, 16);
+        v.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        v.setTextColor(PINK_SOFT);
+        return v;
+    }
 
-        LinearLayout root = new LinearLayout(this);
+    void section(LinearLayout c, String number, String heading, String sub) {
+        TextView h = title(number + "  " + heading);
+        c.addView(h);
+
+        TextView s = text(sub, 11);
+        s.setTextColor(MUTED);
+        s.setPadding(0, dp(3), 0, dp(10));
+        c.addView(s);
+    }
+
+    TextView centerText(String value, float size, int color) {
+        TextView v = text(value, size);
+        v.setTextColor(color);
+        v.setGravity(Gravity.CENTER);
+        return v;
+    }
+
+    // =========================================================
+    // SHELL / NAVIGATION
+    // =========================================================
+
+    void buildShell() {
+        root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16),dp(18),dp(16),dp(28));
+        root.setBackgroundColor(BG);
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.setGravity(Gravity.CENTER);
-        header.setPadding(0,dp(6),0,dp(18));
+        content = new FrameLayout(this);
+        content.setBackgroundColor(BG);
 
-        TextView brand = tv("TRADING GATE",27);
-        brand.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        brand.setGravity(Gravity.CENTER);
+        root.addView(content,
+                new LinearLayout.LayoutParams(-1, 0, 1));
 
-        TextView small = tv("DISCIPLINE SYSTEM",11);
-        small.setTextColor(PINK);
-        small.setGravity(Gravity.CENTER);
-        small.setLetterSpacing(.18f);
+        buildBottomNav();
 
-        TextView motto = tv("NO SETUP.  NO ENTRY.",12);
-        motto.setTextColor(MUTED);
-        motto.setGravity(Gravity.CENTER);
-        motto.setPadding(0,dp(7),0,0);
+        root.addView(bottomNav,
+                new LinearLayout.LayoutParams(-1, dp(64)));
 
-        header.addView(brand);
-        header.addView(small);
-        header.addView(motto);
-        root.addView(header);
+        setContentView(root);
+    }
 
+    void buildBottomNav() {
+        bottomNav = new LinearLayout(this);
+        bottomNav.setOrientation(LinearLayout.HORIZONTAL);
+        bottomNav.setGravity(Gravity.CENTER);
+        bottomNav.setPadding(dp(5), dp(5), dp(5), dp(5));
+        bottomNav.setBackgroundColor(Color.rgb(11, 11, 14));
+
+        addNav("⌂\nHome", 0);
+        addNav("☑\nChecklist", 1);
+        addNav("▣\nRiwayat", 2);
+        addNav("⚙\nPengaturan", 3);
+    }
+
+    void addNav(String label, int page) {
+        TextView n = centerText(label, 10, MUTED);
+        n.setGravity(Gravity.CENTER);
+        n.setPadding(0, dp(4), 0, dp(2));
+
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(0, -1, 1);
+
+        bottomNav.addView(n, lp);
+
+        n.setOnClickListener(v -> {
+            if (page == 0) showHome();
+            if (page == 1) showChecklist();
+            if (page == 2) showHistory();
+            if (page == 3) showSettings();
+        });
+    }
+
+    void clearContent() {
+        content.removeAllViews();
+    }
+
+    ScrollView pageScroll() {
+        ScrollView s = new ScrollView(this);
+        s.setFillViewport(true);
+        s.setBackgroundColor(BG);
+        return s;
+    }
+
+    LinearLayout pageRoot() {
+        LinearLayout p = new LinearLayout(this);
+        p.setOrientation(LinearLayout.VERTICAL);
+        p.setPadding(dp(16), dp(16), dp(16), dp(22));
+        return p;
+    }
+
+    void pageHeader(LinearLayout p, String subtitle) {
+        TextView brand = centerText("TRADING GATE", 22, WHITE);
+        brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        p.addView(brand);
+
+        TextView sub = centerText(subtitle, 10, PINK);
+        sub.setLetterSpacing(.18f);
+        sub.setPadding(0, dp(2), 0, dp(15));
+        p.addView(sub);
+    }
+
+    // =========================================================
+    // HOME
+    // =========================================================
+
+    void showHome() {
+        clearContent();
+
+        ScrollView scroll = pageScroll();
+        LinearLayout p = pageRoot();
+
+        pageHeader(p, "DISCIPLINE SYSTEM");
+
+        // Date
+        LinearLayout date = card();
+        date.setPadding(dp(14), dp(11), dp(14), dp(11));
+        TextView d = text(
+                ZonedDateTime.now(ZoneId.of(TZ))
+                        .format(DateTimeFormatter.ofPattern(
+                                "EEEE, d MMM yyyy", Locale.US)),
+                12);
+        d.setTextColor(WHITE);
+        date.addView(d);
+        p.addView(date);
+
+        // Status
         LinearLayout statusCard = card();
-        TextView cap = tv("GATE STATUS",10);
-        cap.setTextColor(MUTED);
-        status = tv("TERKUNCI",24);
-        status.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        status.setTextColor(RED);
-        timer = tv("",13);
-        timer.setTextColor(GREEN);
-        reason = tv("Lengkapi checklist sebelum membuka MT5.",12);
-        reason.setTextColor(MUTED);
-        reason.setPadding(0,dp(5),0,0);
-        statusCard.addView(cap);
-        statusCard.addView(status);
-        statusCard.addView(timer);
-        statusCard.addView(reason);
-        root.addView(statusCard);
+        statusCard.setBackground(
+                rounded(Color.rgb(28, 16, 23), Color.rgb(112, 53, 77), 1, 18));
+
+        TextView sc = text("STATUS GATE", 11);
+        sc.setTextColor(PINK_SOFT);
+
+        homeStatus = text("READY", 27);
+        homeStatus.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        homeStatus.setTextColor(PINK_SOFT);
+
+        homeStatusSub = text("Siap untuk membuka Gate", 12);
+        homeStatusSub.setTextColor(WHITE);
+
+        statusCard.addView(sc);
+        statusCard.addView(homeStatus);
+        statusCard.addView(homeStatusSub);
+        p.addView(statusCard);
+
+        // Stats
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+
+        LinearLayout a = card();
+        a.setPadding(dp(12), dp(11), dp(12), dp(11));
+        TextView at = text("AKSES HARI INI", 9);
+        at.setTextColor(MUTED);
+        accessValue = text(accessCount() + " / " + MAX_ACCESS, 21);
+        accessValue.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        accessValue.setTextColor(PINK_SOFT);
+        a.addView(at);
+        a.addView(accessValue);
+
+        LinearLayout s = card();
+        s.setPadding(dp(12), dp(11), dp(12), dp(11));
+        TextView st = text("SL HARI INI", 9);
+        st.setTextColor(MUTED);
+        slValue = text(slCount() + " / " + MAX_SL, 21);
+        slValue.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        slValue.setTextColor(PINK_SOFT);
+        s.addView(st);
+        s.addView(slValue);
+
+        LinearLayout.LayoutParams h1 =
+                new LinearLayout.LayoutParams(0, -2, 1);
+        h1.setMargins(0, 0, dp(5), dp(12));
+
+        LinearLayout.LayoutParams h2 =
+                new LinearLayout.LayoutParams(0, -2, 1);
+        h2.setMargins(dp(5), 0, 0, dp(12));
+
+        stats.addView(a, h1);
+        stats.addView(s, h2);
+        p.addView(stats);
+
+        // Reset
+        LinearLayout reset = card();
+        TextView rt = text("◷  RESET HARIAN", 10);
+        rt.setTextColor(PINK);
+        resetValue = text(nextResetText(), 13);
+        resetValue.setTextColor(WHITE);
+        reset.addView(rt);
+        reset.addView(resetValue);
+        p.addView(reset);
+
+        // Main action
+        homeOpenButton = pinkButton("BUKA GATE   ›");
+        LinearLayout.LayoutParams bp =
+                new LinearLayout.LayoutParams(-1, dp(55));
+        bp.setMargins(0, dp(2), 0, dp(10));
+        p.addView(homeOpenButton, bp);
+
+        homeOpenButton.setOnClickListener(v -> openGateFlow());
+
+        // If active, show session button instead
+        if (isSessionActive()) {
+            homeOpenButton.setText("SESI AKTIF   ›");
+            homeOpenButton.setOnClickListener(v -> showActiveSession());
+        } else if (accessCount() >= MAX_ACCESS || slCount() >= MAX_SL) {
+            homeOpenButton.setText("GATE TERKUNCI HARI INI");
+            homeOpenButton.setEnabled(false);
+            homeOpenButton.setTextColor(MUTED);
+            homeOpenButton.setBackground(rounded(CARD_2, BORDER, 1, 15));
+        }
+
+        TextView motto = centerText(
+                "NO SETUP. NO ENTRY.\nPLAN YOUR TRADE. TRADE YOUR PLAN.",
+                10, MUTED);
+        motto.setPadding(0, dp(8), 0, 0);
+        p.addView(motto);
+
+        scroll.addView(p);
+        content.addView(scroll);
+    }
+
+    String nextResetText() {
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.of(TZ));
+        ZonedDateTime next = now.with(LocalTime.of(8, 0));
+
+        if (!now.isBefore(next)) {
+            next = next.plusDays(1);
+        }
+
+        return next.format(DateTimeFormatter.ofPattern(
+                "EEEE, d MMM • HH:mm 'WITA'", Locale.US));
+    }
+
+    void refreshHome() {
+        if (content.getChildCount() == 0) return;
+        showHome();
+    }
+
+    // =========================================================
+    // CHECKLIST
+    // =========================================================
+
+    void showChecklist() {
+        clearContent();
+
+        ScrollView scroll = pageScroll();
+        LinearLayout p = pageRoot();
+
+        pageHeader(p, "CHECKLIST");
+
+        LinearLayout intro = card();
+        checklistProgress = text(checklistCount() + " / 7 CHECKLIST", 18);
+        checklistProgress.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        checklistProgress.setTextColor(PINK_SOFT);
+        intro.addView(checklistProgress);
+
+        TextView hint = text(
+                "Lengkapi setup sebelum Gate boleh dibuka.",
+                11);
+        hint.setTextColor(MUTED);
+        intro.addView(hint);
+        p.addView(intro);
+
+        addChecklistRow(p, "1", "Kondisi Diri",
+                conditionOk ? "Fisik • mental • emosi ✓" : "Fisik • mental • emosi",
+                conditionOk,
+                v -> showCondition());
+
+        addChecklistRow(p, "2", "Analisis HTF",
+                (h4Ok() && h2Ok() && h1Ok())
+                        ? "H4 / H2 / H1 ✓" : "H4 / H2 / H1",
+                h4Ok() && h2Ok() && h1Ok(),
+                v -> showHTF());
+
+        addChecklistRow(p, "3", "News Check",
+                newsChecked ? "Kalender ekonomi ✓" : "Kalender ekonomi",
+                newsChecked,
+                v -> showNews());
+
+        addChecklistRow(p, "4", "Liquidity",
+                liquidity ? "Area likuiditas ✓" : "Area likuiditas",
+                liquidity,
+                v -> {
+                    liquidity = !liquidity;
+                    showChecklist();
+                });
+
+        addChecklistRow(p, "5", "CISD",
+                cisd ? "Konfirmasi struktur ✓" : "Konfirmasi struktur",
+                cisd,
+                v -> {
+                    cisd = !cisd;
+                    showChecklist();
+                });
+
+        addChecklistRow(p, "6", "Entry Plan",
+                planComplete()
+                        ? direction + " • " + zone + " • " + rr
+                        : "Direction • Zone • TF • RR",
+                planComplete(),
+                v -> showEntryPlan());
+
+        boolean risk = bos || idm || (!bos && !idm);
+        addChecklistRow(p, "7", "Risk Management",
+                "BOS / IDM optional • risk discipline",
+                risk,
+                v -> showRisk());
+
+        confirmButton = pinkButton("CEK & BUKA GATE   🔒");
+        LinearLayout.LayoutParams cp =
+                new LinearLayout.LayoutParams(-1, dp(55));
+        cp.setMargins(0, dp(10), 0, dp(10));
+        p.addView(confirmButton, cp);
+
+        confirmButton.setOnClickListener(v -> attemptOpenGate());
+
+        scroll.addView(p);
+        content.addView(scroll);
+    }
+
+    void addChecklistRow(
+            LinearLayout parent,
+            String number,
+            String title,
+            String sub,
+            boolean done,
+            View.OnClickListener click) {
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(10), dp(8), dp(8), dp(8));
+        row.setBackground(
+                rounded(done
+                        ? Color.rgb(30, 21, 27)
+                        : CARD, done ? Color.rgb(94, 54, 70) : BORDER, 1, 14));
+
+        TextView check = centerText(done ? "✓" : number, 14,
+                done ? Color.rgb(35, 20, 27) : PINK_SOFT);
+        check.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        check.setBackground(rounded(
+                done ? PINK_SOFT : CARD_2,
+                done ? PINK_SOFT : Color.rgb(78, 68, 78),
+                1, 8));
+
+        LinearLayout.LayoutParams cp =
+                new LinearLayout.LayoutParams(dp(32), dp(32));
+        row.addView(check, cp);
+
+        LinearLayout words = new LinearLayout(this);
+        words.setOrientation(LinearLayout.VERTICAL);
+        words.setPadding(dp(10), 0, dp(5), 0);
+
+        TextView t = text(title, 14);
+        t.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+
+        TextView s = text(sub, 10);
+        s.setTextColor(MUTED);
+
+        words.addView(t);
+        words.addView(s);
+
+        row.addView(words,
+                new LinearLayout.LayoutParams(0, -2, 1));
+
+        TextView arrow = centerText("›", 23, MUTED);
+        row.addView(arrow,
+                new LinearLayout.LayoutParams(dp(24), dp(40)));
+
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(-1, dp(58));
+        lp.bottomMargin = dp(7);
+
+        parent.addView(row, lp);
+        row.setOnClickListener(click);
+    }
+
+    // =========================================================
+    // CONDITION
+    // =========================================================
+
+    void showCondition() {
+        clearContent();
+
+        LinearLayout p = pageRoot();
+        pageHeader(p, "KONDISI DIRI");
+
+        LinearLayout c = card();
+        section(c, "01", "KONDISI DIRI",
+                "Gate tidak dibuka kalau kamu sedang tidak siap.");
+
+        CheckBox ok = check("Saya fokus dan kondisi mental stabil.");
+        ok.setChecked(conditionOk);
+        c.addView(ok);
+
+        Button save = pinkButton("SIMPAN");
+        c.addView(save);
+
+        save.setOnClickListener(v -> {
+            conditionOk = ok.isChecked();
+            showChecklist();
+        });
+
+        p.addView(c);
+        backButton(p, "‹  KEMBALI");
+        setPage(p);
+    }
+
+    // =========================================================
+    // HTF
+    // =========================================================
+
+    boolean h4Ok() { return pref.getBoolean("h4", false); }
+    boolean h2Ok() { return pref.getBoolean("h2", false); }
+    boolean h1Ok() { return pref.getBoolean("h1", false); }
+
+    void showHTF() {
+        clearContent();
+
+        LinearLayout p = pageRoot();
+        pageHeader(p, "ANALISIS HTF");
+
+        LinearLayout c = card();
+        section(c, "02", "HTF & ZONA",
+                "Tandai zona yang sudah jelas.");
+
+        CheckBox a = check("H4 sudah jelas");
+        CheckBox b = check("H2 sudah jelas");
+        CheckBox d = check("H1 sudah jelas");
+
+        a.setChecked(h4Ok());
+        b.setChecked(h2Ok());
+        d.setChecked(h1Ok());
+
+        c.addView(a);
+        c.addView(b);
+        c.addView(d);
+
+        Button save = pinkButton("SIMPAN");
+        c.addView(save);
+
+        save.setOnClickListener(v -> {
+            pref.edit()
+                    .putBoolean("h4", a.isChecked())
+                    .putBoolean("h2", b.isChecked())
+                    .putBoolean("h1", d.isChecked())
+                    .apply();
+            showChecklist();
+        });
+
+        p.addView(c);
+        backButton(p, "‹  KEMBALI");
+        setPage(p);
+    }
+
+    // =========================================================
+    // NEWS
+    // =========================================================
+
+    void showNews() {
+        clearContent();
+
+        LinearLayout p = pageRoot();
+        pageHeader(p, "NEWS CHECK");
+
+        LinearLayout c = card();
+        section(c, "03", "NEWS BESAR",
+                "Checklist manual untuk memastikan kalender sudah diperiksa.");
+
+        CheckBox ok = check("Saya sudah mengecek News Besar / kalender ekonomi.");
+        ok.setChecked(newsChecked);
+        c.addView(ok);
+
+        Button save = pinkButton("SIMPAN");
+        c.addView(save);
+
+        save.setOnClickListener(v -> {
+            newsChecked = ok.isChecked();
+            showChecklist();
+        });
+
+        p.addView(c);
+        backButton(p, "‹  KEMBALI");
+        setPage(p);
+    }
+
+    // =========================================================
+    // ENTRY PLAN
+    // =========================================================
+
+    boolean planComplete() {
+        return !direction.isEmpty()
+                && !zone.isEmpty()
+                && !timeframe.isEmpty()
+                && !rr.isEmpty();
+    }
+
+    void showEntryPlan() {
+        clearContent();
+
+        ScrollView scroll = pageScroll();
+        LinearLayout p = pageRoot();
+
+        pageHeader(p, "ENTRY PLAN");
+
+        LinearLayout c = card();
+        section(c, "06", "ENTRY PLAN",
+                "Tap pilihan. Tidak perlu mengetik TP / SL.");
+
+        TextView d = text("DIRECTION", 10);
+        d.setTextColor(MUTED);
+        c.addView(d);
+
+        LinearLayout directions = new LinearLayout(this);
+        directions.setOrientation(LinearLayout.HORIZONTAL);
+
+        Button buy = choice("BUY", direction.equals("BUY"));
+        Button sell = choice("SELL", direction.equals("SELL"));
+
+        directions.addView(buy, weightButton());
+        directions.addView(sell, weightButton());
+
+        c.addView(directions);
+
+        buy.setOnClickListener(v -> {
+            direction = "BUY";
+            showEntryPlan();
+        });
+
+        sell.setOnClickListener(v -> {
+            direction = "SELL";
+            showEntryPlan();
+        });
+
+        TextView z = text("ZONE", 10);
+        z.setTextColor(MUTED);
+        z.setPadding(0, dp(12), 0, dp(5));
+        c.addView(z);
+
+        LinearLayout zones = new LinearLayout(this);
+        zones.setOrientation(LinearLayout.VERTICAL);
+
+        addChoiceRow(zones, "FVG", "POI", "FVG + POI", "SUPPORT", "RESISTANCE");
+        c.addView(zones);
+
+        TextView tf = text("TIMEFRAME", 10);
+        tf.setTextColor(MUTED);
+        tf.setPadding(0, dp(12), 0, dp(5));
+        c.addView(tf);
+
+        LinearLayout tfs = new LinearLayout(this);
+        tfs.setOrientation(LinearLayout.HORIZONTAL);
+        addTf(tfs, "M15");
+        addTf(tfs, "M30");
+        addTf(tfs, "H1");
+        addTf(tfs, "H2");
+        addTf(tfs, "H4");
+        c.addView(tfs);
+
+        TextView r = text("RISK : REWARD", 10);
+        r.setTextColor(MUTED);
+        r.setPadding(0, dp(12), 0, dp(5));
+        c.addView(r);
+
+        LinearLayout rrs = new LinearLayout(this);
+        rrs.setOrientation(LinearLayout.HORIZONTAL);
+        addRR(rrs, "1:1");
+        addRR(rrs, "1:2");
+        addRR(rrs, "1:3");
+        c.addView(rrs);
+
+        p.addView(c);
+
+        Button save = pinkButton("SIMPAN ENTRY PLAN");
+        p.addView(save,
+                new LinearLayout.LayoutParams(-1, dp(54)));
+
+        save.setOnClickListener(v -> showChecklist());
+
+        backButton(p, "‹  KEMBALI");
+
+        scroll.addView(p);
+        content.addView(scroll);
+    }
+
+    LinearLayout.LayoutParams weightButton() {
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(0, dp(46), 1);
+        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+        return lp;
+    }
+
+    Button choice(String text, boolean selected) {
+        Button b = button(text);
+        if (selected) {
+            b.setTextColor(Color.rgb(30, 20, 25));
+            b.setBackground(rounded(PINK_SOFT, PINK, 0, 12));
+        }
+        return b;
+    }
+
+    void addChoiceRow(
+            LinearLayout parent,
+            String... values) {
+
+        for (int start = 0; start < values.length; start += 2) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+
+            int end = Math.min(start + 2, values.length);
+
+            for (int i = start; i < end; i++) {
+                String value = values[i];
+                Button b = choice(value, zone.equals(value));
+                row.addView(b, weightButton());
+
+                b.setOnClickListener(v -> {
+                    zone = value;
+                    showEntryPlan();
+                });
+            }
+
+            parent.addView(row);
+        }
+    }
+
+    void addTf(LinearLayout parent, String value) {
+        Button b = choice(value, timeframe.equals(value));
+        parent.addView(b, weightButton());
+        b.setOnClickListener(v -> {
+            timeframe = value;
+            showEntryPlan();
+        });
+    }
+
+    void addRR(LinearLayout parent, String value) {
+        Button b = choice(value, rr.equals(value));
+        parent.addView(b, weightButton());
+        b.setOnClickListener(v -> {
+            rr = value;
+            showEntryPlan();
+        });
+    }
+
+    // =========================================================
+    // RISK MANAGEMENT
+    // =========================================================
+
+    void showRisk() {
+        clearContent();
+
+        LinearLayout p = pageRoot();
+        pageHeader(p, "RISK MANAGEMENT");
+
+        LinearLayout c = card();
+        section(c, "07", "RISK MANAGEMENT",
+                "BOS dan IDM bersifat opsional.");
+
+        CheckBox b = check("BOS terkonfirmasi (optional)");
+        CheckBox i = check("IDM terkonfirmasi (optional)");
+
+        b.setChecked(bos);
+        i.setChecked(idm);
+
+        c.addView(b);
+        c.addView(i);
+
+        TextView info = text(
+                "Liquidity + CISD tetap wajib.\n" +
+                "Risk:Reward dipilih di Entry Plan.",
+                11);
+        info.setTextColor(MUTED);
+        info.setPadding(0, dp(10), 0, dp(10));
+        c.addView(info);
+
+        Button save = pinkButton("SIMPAN");
+        c.addView(save);
+
+        save.setOnClickListener(v -> {
+            bos = b.isChecked();
+            idm = i.isChecked();
+            showChecklist();
+        });
+
+        p.addView(c);
+        backButton(p, "‹  KEMBALI");
+        setPage(p);
+    }
+
+    // =========================================================
+    // GATE FLOW
+    // =========================================================
+
+    void openGateFlow() {
+        if (isSessionActive()) {
+            showActiveSession();
+            return;
+        }
+
+        checkDailyReset();
+
+        if (slCount() >= MAX_SL) {
+            showLockedToday("3 SL tercapai. Gate tertutup sampai reset 08:00 WITA.");
+            return;
+        }
+
+        if (accessCount() >= MAX_ACCESS) {
+            showLockedToday("Batas 5 akses hari ini sudah tercapai.");
+            return;
+        }
+
+        showChecklist();
+    }
+
+    void attemptOpenGate() {
+        checkDailyReset();
+
+        if (isSessionActive()) {
+            showActiveSession();
+            return;
+        }
+
+        if (accessCount() >= MAX_ACCESS) {
+            showLockedToday("Batas 5 akses hari ini sudah tercapai.");
+            return;
+        }
+
+        if (slCount() >= MAX_SL) {
+            showLockedToday("3 SL tercapai. Gate tertutup sampai reset 08:00 WITA.");
+            return;
+        }
+
+        if (!conditionOk) {
+            Toast.makeText(this,
+                    "Kondisi diri belum dikonfirmasi.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!h4Ok() || !h2Ok() || !h1Ok()) {
+            Toast.makeText(this,
+                    "Analisis H4 / H2 / H1 belum lengkap.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!newsChecked) {
+            Toast.makeText(this,
+                    "News Check belum selesai.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!liquidity) {
+            Toast.makeText(this,
+                    "Liquidity wajib dikonfirmasi.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!cisd) {
+            Toast.makeText(this,
+                    "CISD wajib dikonfirmasi.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!planComplete()) {
+            Toast.makeText(this,
+                    "Entry Plan belum lengkap.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        int next = accessCount() + 1;
+
+        pref.edit()
+                .putInt("access_count", next)
+                .putBoolean("unlocked", true)
+                .putLong("session_until",
+                        System.currentTimeMillis() + SESSION_MS)
+                .apply();
+
+        showActiveSession();
+    }
+
+    boolean isSessionActive() {
+        if (pref == null) return false;
+
+        long until = pref.getLong("session_until", 0);
+
+        if (until > System.currentTimeMillis()) {
+            return true;
+        }
+
+        if (pref.getBoolean("unlocked", false)) {
+            lockSession();
+        }
+
+        return false;
+    }
+
+    void restoreSession() {
+        if (isSessionActive()) {
+            showActiveSession();
+        } else {
+            refreshHome();
+        }
+    }
+
+    void showActiveSession() {
+        clearContent();
+
+        ScrollView scroll = pageScroll();
+        LinearLayout p = pageRoot();
+
+        pageHeader(p, "SESI AKTIF");
+
+        LinearLayout timerCard = card();
+        timerCard.setGravity(Gravity.CENTER);
+        timerCard.setBackground(
+                rounded(Color.rgb(26, 14, 22), Color.rgb(113, 52, 78), 1, 20));
+
+        sessionStatus = centerText("TRADING SESSION ACTIVE", 11, PINK_SOFT);
+        sessionStatus.setPadding(0, dp(5), 0, dp(8));
+
+        sessionTimer = centerText("15:00", 42, WHITE);
+        sessionTimer.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+
+        TextView cap = centerText("SISA WAKTU / 15:00", 10, MUTED);
+
+        timerCard.addView(sessionStatus);
+        timerCard.addView(sessionTimer);
+        timerCard.addView(cap);
+        p.addView(timerCard);
 
         LinearLayout stats = new LinearLayout(this);
         stats.setOrientation(LinearLayout.HORIZONTAL);
 
-        LinearLayout access = card();
-        access.setPadding(dp(12),dp(10),dp(12),dp(10));
-        TextView a1 = tv("ACCESS HARI INI",10); a1.setTextColor(MUTED);
-        TextView a2 = tv("0 / 5",20); a2.setTextColor(PINK_SOFT);
-        a2.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        access.addView(a1); access.addView(a2);
+        stats.addView(statCard("AKSES HARI INI",
+                accessCount() + " / " + MAX_ACCESS), halfParams(false));
 
-        LinearLayout losses = card();
-        losses.setPadding(dp(12),dp(10),dp(12),dp(10));
-        TextView l1 = tv("STOP LOSS HARI INI",10); l1.setTextColor(MUTED);
-        TextView l2 = tv("0 / 3",20); l2.setTextColor(PINK_SOFT);
-        l2.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        losses.addView(l1); losses.addView(l2);
+        stats.addView(statCard("SL HARI INI",
+                slCount() + " / " + MAX_SL), halfParams(true));
 
-        LinearLayout.LayoutParams half = new LinearLayout.LayoutParams(0,-2,1);
-        half.setMargins(0,0,dp(5),dp(12));
-        stats.addView(access,half);
-        LinearLayout.LayoutParams half2 = new LinearLayout.LayoutParams(0,-2,1);
-        half2.setMargins(dp(5),0,0,dp(12));
-        stats.addView(losses,half2);
-        root.addView(stats);
+        p.addView(stats);
 
-        TextView reset = tv("Reset 08:00 WITA  •  setiap sesi aktif 15 menit",11);
-        reset.setTextColor(MUTED);
-        reset.setGravity(Gravity.CENTER);
-        reset.setPadding(0,0,0,dp(15));
-        root.addView(reset);
+        LinearLayout active = card();
+        TextView at = text("⌁  GATE AKTIF", 12);
+        at.setTextColor(PINK);
+        TextView ap = text(
+                "MT5 dapat dibuka selama sesi berlangsung.\n" +
+                "Saat waktu habis, Gate otomatis terkunci.",
+                11);
+        ap.setTextColor(MUTED);
+        ap.setPadding(0, dp(5), 0, 0);
+        active.addView(at);
+        active.addView(ap);
+        p.addView(active);
 
-        LinearLayout self = card();
-        heading(self,"01  KONDISI DIRI","Trading dimulai dari kondisi diri.");
+        mt5Button = pinkButton("BUKA MT5   ›");
+        p.addView(mt5Button,
+                new LinearLayout.LayoutParams(-1, dp(54)));
+        mt5Button.setOnClickListener(v -> open());
 
-        self.addView(tv("Saya sedang fokus dan tidak ada pekerjaan lain.",13));
-        RadioGroup g1 = new RadioGroup(this);
-        notBusy = new RadioButton(this); notBusy.setText("Ya — saya fokus");
-        busy = new RadioButton(this); busy.setText("Tidak — saya sedang sibuk");
-        radioStyle(notBusy); radioStyle(busy); notBusy.setChecked(true);
-        g1.addView(notBusy); g1.addView(busy); self.addView(g1);
+        Button back = button("KEMBALI KE HOME");
+        LinearLayout.LayoutParams bp =
+                new LinearLayout.LayoutParams(-1, dp(48));
+        bp.topMargin = dp(9);
+        p.addView(back, bp);
+        back.setOnClickListener(v -> showHome());
 
-        self.addView(tv("Kondisi mental saya stabil.",13));
-        RadioGroup g2 = new RadioGroup(this);
-        notTired = new RadioButton(this); notTired.setText("Ya — kondisi stabil");
-        tired = new RadioButton(this); tired.setText("Tidak — capek / emosi");
-        radioStyle(notTired); radioStyle(tired); notTired.setChecked(true);
-        g2.addView(notTired); g2.addView(tired); self.addView(g2);
-        root.addView(self);
+        scroll.addView(p);
+        content.addView(scroll);
 
-        LinearLayout htf = card();
-        heading(htf,"02  HTF & ZONA","Pastikan konteks besar sudah jelas.");
-        h4=check("ZONA H4 sudah jelas");
-        h2=check("ZONA H2 sudah jelas");
-        h1=check("ZONA H1 sudah jelas");
-        htf.addView(h4); htf.addView(h2); htf.addView(h1);
-        root.addView(htf);
-
-        LinearLayout newsCard = card();
-        heading(newsCard,"03  NEWS BESAR","Window news mengikuti aturan Gate.");
-        TextView nh = tv("Isi jam News Besar dalam WITA. Gate mulai 2 jam sebelum news sampai waktu news.",11);
-        nh.setTextColor(MUTED); nh.setPadding(0,0,0,dp(8));
-        newsCard.addView(nh);
-        news=input("Jam news • contoh 20:30");
-        newsCard.addView(news);
-        now=tv("Waktu WITA sekarang: --:--:--",11);
-        now.setTextColor(MUTED);
-        newsCard.addView(now);
-        updateNow();
-        root.addView(newsCard);
-
-        LinearLayout market = card();
-        heading(market,"04  KONFIRMASI MARKET","Konfirmasi inti sebelum entry.");
-        liq=check("LIQUIDITY  •  wajib");
-        cisd=check("CISD  •  wajib");
-        bos=check("BOS  •  opsional");
-        idm=check("IDM  •  opsional");
-        market.addView(liq); market.addView(cisd); market.addView(bos); market.addView(idm);
-        root.addView(market);
-
-        LinearLayout plan = card();
-        heading(plan,"05  ENTRY PLAN","Rencanakan entry sebelum MT5 dibuka.");
-
-        TextView e1=tv("PLAN ENTRY",10); e1.setTextColor(MUTED); plan.addView(e1);
-        entry=input("Contoh: Sell setelah CISD di POI H1"); plan.addView(entry);
-
-        TextView e2=tv("TAKE PROFIT",10); e2.setTextColor(MUTED); plan.addView(e2);
-        tp=input("Target harga / pip"); plan.addView(tp);
-
-        TextView e3=tv("STOP LOSS",10); e3.setTextColor(MUTED); plan.addView(e3);
-        sl=input("Invalidasi harga / pip"); plan.addView(sl);
-        root.addView(plan);
-
-        unlock=action("CEK & UNLOCK MT5");
-        unlock.setTextSize(15);
-        unlock.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        unlock.setTextColor(Color.rgb(30,24,28));
-        unlock.setBackground(shape(PINK, PINK,0,16));
-        LinearLayout.LayoutParams up=new LinearLayout.LayoutParams(-1,dp(56));
-        up.setMargins(0,dp(3),0,dp(10));
-        root.addView(unlock,up);
-        unlock.setOnClickListener(v->checkUnlock());
-
-        mt5=action("BUKA MT5");
-        mt5.setEnabled(false);
-        root.addView(mt5,new LinearLayout.LayoutParams(-1,dp(50)));
-        mt5.setOnClickListener(v->open());
-
-        Button lock=action("⚙  AKTIFKAN APP LOCK");
-        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(48));
-        ap.topMargin=dp(10);
-        root.addView(lock,ap);
-        lock.setOnClickListener(v->{
-            try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); }
-            catch(Exception e){ Toast.makeText(this,"Tidak bisa membuka pengaturan Accessibility.",Toast.LENGTH_LONG).show(); }
-        });
-
-        TextView info=tv("Aktifkan Trading Gate di Pengaturan > Aksesibilitas agar MT5 ikut ditahan saat Gate terkunci.",11);
-        info.setTextColor(MUTED); info.setGravity(Gravity.CENTER);
-        info.setPadding(dp(8),dp(9),dp(8),0);
-        root.addView(info);
-
-        scroll.addView(root);
-        setContentView(scroll);
+        startSessionTimer();
     }
 
-    void updateNow() {
-        ZonedDateTime z=ZonedDateTime.now(ZoneId.of("Asia/Makassar"));
-        if(now!=null) now.setText("Waktu WITA sekarang: "+z.format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+    LinearLayout.LayoutParams halfParams(boolean right) {
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(0, -2, 1);
+        lp.setMargins(right ? dp(5) : 0, 0, right ? 0 : dp(5), dp(12));
+        return lp;
     }
 
-    String validate() {
-        if(busy.isChecked()) return "LOCK: kamu sedang sibuk.";
-        if(tired.isChecked()) return "LOCK: kamu sedang capek / emosi.";
-        if(!h4.isChecked()||!h2.isChecked()||!h1.isChecked()) return "LOCK: zona H4, H2, H1 harus jelas.";
-        if(!liq.isChecked()) return "LOCK: Liquidity belum dikonfirmasi.";
-        if(!cisd.isChecked()) return "LOCK: CISD belum dikonfirmasi.";
-        if(!bos.isChecked()) return "LOCK: BOS belum dikonfirmasi.";
-        if(!idm.isChecked()) return "LOCK: IDM belum dikonfirmasi.";
-        if(entry.getText().toString().trim().isEmpty()) return "LOCK: Plan Entry wajib diisi.";
-        if(tp.getText().toString().trim().isEmpty()) return "LOCK: TP wajib diisi.";
-        if(sl.getText().toString().trim().isEmpty()) return "LOCK: SL wajib diisi.";
+    LinearLayout statCard(String name, String value) {
+        LinearLayout c = card();
+        c.setPadding(dp(12), dp(10), dp(12), dp(10));
 
-        String s=news.getText().toString().trim();
-        if(!s.matches("\\d{2}:\\d{2}")) return "LOCK: isi jam News Besar dengan format HH:mm WITA.";
+        TextView a = text(name, 9);
+        a.setTextColor(MUTED);
+        TextView b = text(value, 20);
+        b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        b.setTextColor(PINK_SOFT);
 
-        int h,m;
-        try { h=Integer.parseInt(s.substring(0,2)); m=Integer.parseInt(s.substring(3,5)); }
-        catch(Exception e){ return "LOCK: format jam News tidak valid."; }
-        if(h>23||m>59) return "LOCK: jam News tidak valid.";
-
-        ZoneId wita=ZoneId.of("Asia/Makassar");
-        ZonedDateTime current=ZonedDateTime.now(wita);
-        LocalDateTime dt=LocalDateTime.of(current.toLocalDate(),LocalTime.of(h,m));
-        ZonedDateTime newsTime=dt.atZone(wita);
-        ZonedDateTime unlockTime=newsTime.minusHours(2);
-
-        if(current.isBefore(unlockTime))
-            return "LOCK: belum masuk window 2 jam sebelum news. Gate mulai "+
-                    unlockTime.format(DateTimeFormatter.ofPattern("HH:mm"))+" WITA.";
-        if(current.isAfter(newsTime)) return "LOCK: waktu News Besar sudah lewat.";
-        return null;
+        c.addView(a);
+        c.addView(b);
+        return c;
     }
 
-    void checkUnlock() {
-        String e=validate();
-        if(e!=null){
-            status.setText("TERKUNCI"); status.setTextColor(RED);
-            reason.setText(e); mt5.setEnabled(false); return;
+    void startSessionTimer() {
+        if (timer != null) timer.cancel();
+
+        long left = pref.getLong("session_until", 0)
+                - System.currentTimeMillis();
+
+        if (left <= 0) {
+            lockSession();
+            return;
         }
 
-        p.edit().putBoolean("unlocked",true)
-                .putLong("until",System.currentTimeMillis()+UNLOCK).apply();
+        timer = new CountDownTimer(left, 1000) {
+            @Override
+            public void onTick(long ms) {
+                long sec = ms / 1000;
+                long min = sec / 60;
+                long rem = sec % 60;
 
-        status.setText("TERBUKA"); status.setTextColor(GREEN);
-        reason.setText("Checklist lolos. Gate aktif 15 menit.");
-        mt5.setEnabled(true);
-        unlock.setText("✓  GATE TERBUKA");
-        startTimer();
-    }
-
-    void startTimer() {
-        if(cd!=null) cd.cancel();
-        long left=p.getLong("until",0)-System.currentTimeMillis();
-        if(left<=0){ lock(); return; }
-
-        cd=new CountDownTimer(left,1000){
-            public void onTick(long ms){
-                long sec=ms/1000;
-                timer.setText(String.format(Locale.US,"MT5 terbuka  •  %02d:%02d",sec/60,sec%60));
+                if (sessionTimer != null) {
+                    sessionTimer.setText(String.format(
+                            Locale.US, "%02d:%02d", min, rem));
+                }
             }
-            public void onFinish(){ lock(); }
+
+            @Override
+            public void onFinish() {
+                lockSession();
+            }
         }.start();
     }
 
-    void lock() {
-        if(cd!=null) cd.cancel();
-        p.edit().putBoolean("unlocked",false).putLong("until",0).apply();
-        status.setText("TERKUNCI"); status.setTextColor(RED);
-        timer.setText(""); reason.setText("Waktu habis. Checklist harus diulang.");
-        mt5.setEnabled(false); unlock.setText("CEK & UNLOCK MT5");
+    void lockSession() {
+        if (timer != null) timer.cancel();
 
-        h4.setChecked(false); h2.setChecked(false); h1.setChecked(false);
-        liq.setChecked(false); cisd.setChecked(false); bos.setChecked(false); idm.setChecked(false);
-        entry.setText(""); tp.setText(""); sl.setText("");
+        pref.edit()
+                .putBoolean("unlocked", false)
+                .putLong("session_until", 0)
+                .apply();
+
+        if (content != null) {
+            showHome();
+        }
     }
 
-    void restore() {
-        boolean unlocked=p.getBoolean("unlocked",false);
-        long until=p.getLong("until",0);
+    void showLockedToday(String message) {
+        clearContent();
 
-        if(unlocked && until>System.currentTimeMillis()){
-            status.setText("TERBUKA"); status.setTextColor(GREEN);
-            reason.setText("Gate masih aktif."); mt5.setEnabled(true);
-            unlock.setText("✓  GATE TERBUKA"); startTimer();
-        } else lock();
+        LinearLayout p = pageRoot();
+        pageHeader(p, "GATE TERKUNCI");
+
+        LinearLayout c = card();
+        c.setGravity(Gravity.CENTER);
+
+        TextView icon = centerText("🔒", 38, PINK_SOFT);
+        c.addView(icon);
+
+        TextView h = centerText("BATAS HARI INI TERCAPAI", 19, PINK_SOFT);
+        h.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        h.setPadding(0, dp(8), 0, dp(4));
+
+        TextView m = centerText(message, 12, WHITE);
+        m.setPadding(dp(10), 0, dp(10), dp(10));
+
+        c.addView(h);
+        c.addView(m);
+        p.addView(c);
+
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.addView(statCard("AKSES HARI INI",
+                accessCount() + " / " + MAX_ACCESS), halfParams(false));
+        stats.addView(statCard("SL HARI INI",
+                slCount() + " / " + MAX_SL), halfParams(true));
+        p.addView(stats);
+
+        LinearLayout next = card();
+        TextView n1 = text("NEXT ACCESS", 10);
+        n1.setTextColor(PINK);
+        TextView n2 = text("Besok 08:00 WITA", 14);
+        n2.setTextColor(WHITE);
+        next.addView(n1);
+        next.addView(n2);
+        p.addView(next);
+
+        Button home = pinkButton("KEMBALI KE HOME");
+        p.addView(home,
+                new LinearLayout.LayoutParams(-1, dp(52)));
+        home.setOnClickListener(v -> showHome());
+
+        setPage(p);
     }
+
+    // =========================================================
+    // HISTORY
+    // =========================================================
+
+    void showHistory() {
+        clearContent();
+
+        ScrollView scroll = pageScroll();
+        LinearLayout p = pageRoot();
+
+        pageHeader(p, "RIWAYAT");
+
+        LinearLayout today = card();
+        section(today, "TODAY", "AKTIVITAS", "Ringkasan sesi Gate hari ini.");
+
+        TextView a = text("Gate dibuka", 12);
+        a.setTextColor(MUTED);
+        TextView av = text(accessCount() + " sesi", 20);
+        av.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        av.setTextColor(PINK_SOFT);
+
+        TextView s = text("Stop Loss terdeteksi", 12);
+        s.setTextColor(MUTED);
+        TextView sv = text(slCount() + " / " + MAX_SL, 20);
+        sv.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        sv.setTextColor(PINK_SOFT);
+
+        today.addView(a);
+        today.addView(av);
+        today.addView(s);
+        today.addView(sv);
+        p.addView(today);
+
+        LinearLayout note = card();
+        TextView nt = text(
+                "Riwayat detail transaksi dan deteksi SL otomatis akan diisi setelah koneksi MT5/VPS selesai.",
+                11);
+        nt.setTextColor(MUTED);
+        note.addView(nt);
+        p.addView(note);
+
+        scroll.addView(p);
+        content.addView(scroll);
+    }
+
+    // =========================================================
+    // SETTINGS
+    // =========================================================
+
+    void showSettings() {
+        clearContent();
+
+        LinearLayout p = pageRoot();
+        pageHeader(p, "PENGATURAN");
+
+        LinearLayout c = card();
+        section(c, "SYSTEM", "TRADING GATE",
+                "Pengaturan akses dan koneksi.");
+
+        Button appLock = button("⚙  AKTIFKAN APP LOCK");
+        c.addView(appLock,
+                new LinearLayout.LayoutParams(-1, dp(48)));
+
+        appLock.setOnClickListener(v -> {
+            try {
+                startActivity(
+                        new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            } catch (Exception e) {
+                Toast.makeText(this,
+                        "Tidak bisa membuka Accessibility.",
+                        Toast.LENGTH_LONG).show();
+            }
+        });
+
+        Button mt5 = button("BUKA MT5");
+        LinearLayout.LayoutParams mp =
+                new LinearLayout.LayoutParams(-1, dp(48));
+        mp.topMargin = dp(8);
+        c.addView(mt5, mp);
+        mt5.setOnClickListener(v -> open());
+
+        TextView info = text(
+                "App Lock menggunakan Accessibility. "
+                        + "Deteksi Stop Loss otomatis belum terhubung.",
+                11);
+        info.setTextColor(MUTED);
+        info.setPadding(0, dp(10), 0, 0);
+        c.addView(info);
+
+        p.addView(c);
+
+        LinearLayout about = card();
+        section(about, "ABOUT", "TRADING GATE",
+                "Discipline System");
+        TextView v = text("V3 UI  •  15 min Gate  •  5 access/day", 11);
+        v.setTextColor(MUTED);
+        about.addView(v);
+        p.addView(about);
+
+        setPage(p);
+    }
+
+    // =========================================================
+    // PAGE HELPERS
+    // =========================================================
+
+    void backButton(LinearLayout p, String label) {
+        Button b = button(label);
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(-1, dp(46));
+        lp.topMargin = dp(10);
+        p.addView(b, lp);
+        b.setOnClickListener(v -> showChecklist());
+    }
+
+    void setPage(LinearLayout p) {
+        ScrollView s = pageScroll();
+        s.addView(p);
+        content.addView(s);
+    }
+
+    int checklistCount() {
+        int n = 0;
+        if (conditionOk) n++;
+        if (h4Ok() && h2Ok() && h1Ok()) n++;
+        if (newsChecked) n++;
+        if (liquidity) n++;
+        if (cisd) n++;
+        if (planComplete()) n++;
+        n++; // Risk management: BOS/IDM are optional.
+        return n;
+    }
+
+    // =========================================================
+    // MT5
+    // =========================================================
 
     void open() {
-        Intent i=getPackageManager().getLaunchIntentForPackage(MT5);
-        if(i!=null) startActivity(i);
-        else Toast.makeText(this,"MT5 tidak ditemukan di HP.",Toast.LENGTH_LONG).show();
+        if (!isSessionActive()) {
+            Toast.makeText(this,
+                    "Gate sudah terkunci. Buka Gate terlebih dahulu.",
+                    Toast.LENGTH_LONG).show();
+            showHome();
+            return;
+        }
+
+        Intent i = getPackageManager()
+                .getLaunchIntentForPackage(MT5);
+
+        if (i != null) {
+            startActivity(i);
+        } else {
+            Toast.makeText(this,
+                    "MT5 tidak ditemukan di HP.",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 }
