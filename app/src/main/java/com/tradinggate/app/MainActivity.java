@@ -380,77 +380,244 @@ p.addView(brand, brandParams);
     // =========================================================
 
     void showLanding() {
-        showingIntro = true;
-        clearContent();
-        hideBottomNav();
+    showingIntro = true;
+    clearContent();
+    hideBottomNav();
 
-        ScrollView scroll = pageScroll();
-        LinearLayout p = pageRoot();
-        p.setPadding(0, 0, 0, dp(18));
+    ScrollView scroll = pageScroll();
+    LinearLayout p = pageRoot();
 
-       android.widget.FrameLayout hero = new android.widget.FrameLayout(this);
+    p.setPadding(0, 0, 0, 0);
 
-android.widget.ImageView background =
-        new android.widget.ImageView(this);
+    // ==========================================
+    // OPENING FULL BACKGROUND
+    // ==========================================
 
-background.setImageResource(
-        R.drawable.trading_gate_background
-);
+    android.widget.FrameLayout opening =
+            new android.widget.FrameLayout(this);
 
-background.setScaleType(
-        android.widget.ImageView.ScaleType.CENTER_CROP
-);
+    // BACKGROUND IMAGE
+    android.widget.ImageView background =
+            new android.widget.ImageView(this);
 
-hero.addView(
-        background,
-        new android.widget.FrameLayout.LayoutParams(-1, -1)
-);
+    background.setImageResource(
+            R.drawable.trading_gate_background
+    );
 
-FireflyView fireflies = new FireflyView(this);
+    background.setScaleType(
+            android.widget.ImageView.ScaleType.CENTER_CROP
+    );
 
-hero.addView(
-        fireflies,
-        new android.widget.FrameLayout.LayoutParams(-1, -1)
-);
+    opening.addView(
+            background,
+            new android.widget.FrameLayout.LayoutParams(
+                    -1,
+                    -1
+            )
+    );
 
-p.addView(
-        hero,
-        new LinearLayout.LayoutParams(-1, dp(560))
-);
-        TextView brand = centerText("TRADING", 27, WHITE);
-        brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        brand.setLetterSpacing(.16f);
-        p.addView(brand);
+    // ==========================================
+    // PINK FIREFLIES
+    // ==========================================
 
-        TextView gate = centerText("GATE", 31, PINK_SOFT);
-        gate.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        gate.setLetterSpacing(.12f);
-        p.addView(gate);
+    FireflyView fireflies =
+            new FireflyView(this);
 
-        TextView sub = centerText("D I S C I P L I N E   S Y S T E M", 9, PINK_SOFT);
-        sub.setPadding(0, dp(4), 0, dp(12));
-        p.addView(sub);
+    opening.addView(
+            fireflies,
+            new android.widget.FrameLayout.LayoutParams(
+                    -1,
+                    -1
+            )
+    );
 
-        TextView motto = centerText("NO SETUP. NO ENTRY.", 10, WHITE);
-        motto.setLetterSpacing(.18f);
-        motto.setPadding(0, dp(6), 0, dp(16));
-        p.addView(motto);
+    // ==========================================
+    // DARK GRADIENT OVERLAY
+    // Supaya tulisan tetap jelas
+    // ==========================================
 
-        Button start = pinkButton("MULAI   ›");
-        LinearLayout.LayoutParams lp =
-                new LinearLayout.LayoutParams(-1, dp(54));
-        lp.setMargins(dp(24), 0, dp(24), 0);
-        p.addView(start, lp);
+    android.view.View overlay =
+            new android.view.View(this);
 
-        start.setOnClickListener(v -> {
-            pref.edit().putBoolean("intro_seen", true).apply();
-            showingIntro = false;
-            showHome();
-        });
+    android.graphics.drawable.GradientDrawable overlayGradient =
+            new android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{
+                            android.graphics.Color.argb(10, 0, 0, 0),
+                            android.graphics.Color.argb(35, 0, 0, 0),
+                            android.graphics.Color.argb(210, 0, 0, 0)
+                    }
+            );
 
-        scroll.addView(p);
-        content.addView(scroll);
-    }
+    overlay.setBackground(overlayGradient);
+
+    opening.addView(
+            overlay,
+            new android.widget.FrameLayout.LayoutParams(
+                    -1,
+                    -1
+            )
+    );
+
+    // ==========================================
+    // TEXT + BUTTON DI ATAS BACKGROUND
+    // ==========================================
+
+    android.widget.LinearLayout ui =
+            new android.widget.LinearLayout(this);
+
+    ui.setOrientation(
+            android.widget.LinearLayout.VERTICAL
+    );
+
+    ui.setGravity(
+            android.view.Gravity.BOTTOM |
+            android.view.Gravity.CENTER_HORIZONTAL
+    );
+
+    ui.setPadding(
+            dp(24),
+            dp(20),
+            dp(24),
+            dp(24)
+    );
+
+    // TRADING
+    TextView brand =
+            centerText("TRADING", 27, WHITE);
+
+    brand.setTypeface(
+            Typeface.DEFAULT,
+            Typeface.BOLD
+    );
+
+    brand.setLetterSpacing(.16f);
+
+    ui.addView(
+            brand,
+            new android.widget.LinearLayout.LayoutParams(
+                    -1,
+                    dp(42)
+            )
+    );
+
+    // GATE
+    TextView gate =
+            centerText("GATE", 31, PINK_SOFT);
+
+    gate.setTypeface(
+            Typeface.DEFAULT,
+            Typeface.BOLD
+    );
+
+    gate.setLetterSpacing(.12f);
+
+    ui.addView(
+            gate,
+            new android.widget.LinearLayout.LayoutParams(
+                    -1,
+                    dp(46)
+            )
+    );
+
+    // DISCIPLINE SYSTEM
+    TextView sub =
+            centerText(
+                    "D I S C I P L I N E   S Y S T E M",
+                    9,
+                    PINK_SOFT
+            );
+
+    sub.setPadding(
+            0,
+            dp(4),
+            0,
+            dp(10)
+    );
+
+    ui.addView(
+            sub,
+            new android.widget.LinearLayout.LayoutParams(
+                    -1,
+                    dp(30)
+            )
+    );
+
+    // NO SETUP
+    TextView motto =
+            centerText(
+                    "NO SETUP. NO ENTRY.",
+                    10,
+                    WHITE
+            );
+
+    motto.setLetterSpacing(.18f);
+
+    motto.setPadding(
+            0,
+            dp(4),
+            0,
+            dp(14)
+    );
+
+    ui.addView(
+            motto,
+            new android.widget.LinearLayout.LayoutParams(
+                    -1,
+                    dp(34)
+            )
+    );
+
+    // MULAI BUTTON
+    Button start =
+            pinkButton("MULAI   ›");
+
+    android.widget.LinearLayout.LayoutParams startLp =
+            new android.widget.LinearLayout.LayoutParams(
+                    -1,
+                    dp(54)
+            );
+
+    startLp.setMargins(
+            dp(0),
+            dp(0),
+            dp(0),
+            dp(0)
+    );
+
+    ui.addView(start, startLp);
+
+    // BUTTON ACTION
+    start.setOnClickListener(v -> {
+        pref.edit()
+                .putBoolean("intro_seen", true)
+                .apply();
+
+        showingIntro = false;
+        showHome();
+    });
+
+    // ADD UI ON TOP OF BACKGROUND
+    opening.addView(
+            ui,
+            new android.widget.FrameLayout.LayoutParams(
+                    -1,
+                    -1
+            )
+    );
+
+    // ADD OPENING TO PAGE
+    p.addView(
+            opening,
+            new android.widget.LinearLayout.LayoutParams(
+                    -1,
+                    dp(760)
+            )
+    );
+
+    scroll.addView(p);
+    content.addView(scroll);
+}
 
     void showHome() {
         showingIntro = false;
