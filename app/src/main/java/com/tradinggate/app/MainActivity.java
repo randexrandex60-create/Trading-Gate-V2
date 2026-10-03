@@ -107,6 +107,7 @@ public class MainActivity extends Activity {
                 "Entry hanya boleh kalau checklist benar-benar lengkap.",
                 13
         );
+
         sub.setTextColor(Color.GRAY);
         sub.setGravity(Gravity.CENTER);
         r.addView(sub);
@@ -126,7 +127,6 @@ public class MainActivity extends Activity {
         reason.setGravity(Gravity.CENTER);
         reason.setTextColor(Color.RED);
         r.addView(reason);
-
 
         // =========================
         // 1-2 KONDISI DIRI
@@ -151,7 +151,6 @@ public class MainActivity extends Activity {
         g1.addView(busy);
         r.addView(g1);
 
-
         r.addView(text("Apakah saya sedang capek / emosi?", 15));
 
         RadioGroup g2 = new RadioGroup(this);
@@ -169,7 +168,6 @@ public class MainActivity extends Activity {
         g2.addView(tired);
         r.addView(g2);
 
-
         // =========================
         // 3-5 ZONA HTF
         // =========================
@@ -184,7 +182,6 @@ public class MainActivity extends Activity {
         r.addView(h2);
         r.addView(h1);
 
-
         // =========================
         // 6 NEWS BESAR
         // =========================
@@ -196,7 +193,7 @@ public class MainActivity extends Activity {
                 14
         ));
 
-        news = input("Contoh: 20:30");
+        news = input("Contoh: 20:30 WITA");
         r.addView(news);
 
         now = text("Waktu WITA sekarang: --:--:--", 13);
@@ -204,7 +201,6 @@ public class MainActivity extends Activity {
         r.addView(now);
 
         updateNow();
-
 
         // =========================
         // 7-10 KONFIRMASI MARKET
@@ -221,7 +217,6 @@ public class MainActivity extends Activity {
         r.addView(cisd);
         r.addView(bos);
         r.addView(idm);
-
 
         // =========================
         // 11-13 PLAN
@@ -241,7 +236,6 @@ public class MainActivity extends Activity {
         sl = input("Contoh: invalidasi harga / pip");
         r.addView(sl);
 
-
         // =========================
         // UNLOCK
         // =========================
@@ -257,7 +251,6 @@ public class MainActivity extends Activity {
 
         r.addView(unlock, unlockParams);
 
-
         // =========================
         // BUKA MT5
         // =========================
@@ -268,7 +261,6 @@ public class MainActivity extends Activity {
         mt5.setOnClickListener(v -> open());
 
         r.addView(mt5, new LinearLayout.LayoutParams(-1, dp(55)));
-
 
         // =========================
         // APP LOCK
@@ -305,7 +297,6 @@ public class MainActivity extends Activity {
         setContentView(sv);
     }
 
-
     // =========================
     // WAKTU WITA
     // =========================
@@ -317,14 +308,13 @@ public class MainActivity extends Activity {
 
         now.setText(
                 "Waktu WITA sekarang: " +
-                z.format(
-                        DateTimeFormatter.ofPattern(
-                                "HH:mm:ss"
+                        z.format(
+                                DateTimeFormatter.ofPattern(
+                                        "HH:mm:ss"
+                                )
                         )
-                )
         );
     }
-
 
     // =========================
     // VALIDASI
@@ -375,10 +365,15 @@ public class MainActivity extends Activity {
             return "LOCK: SL wajib diisi.";
         }
 
-        String s = news.getText().toString().trim();
+        // =========================
+        // VALIDASI NEWS WITA
+        // =========================
+
+        String s = news.getText().toString().trim().toUpperCase(Locale.ROOT);
+        s = s.replace("WITA", "").trim();
 
         if (!s.matches("\\d{2}:\\d{2}")) {
-            return "LOCK: isi jam News Besar dengan format HH:mm WITA.";
+            return "LOCK: isi jam News Besar dengan format HH:mm atau HH:mm WITA.";
         }
 
         int h;
@@ -412,7 +407,6 @@ public class MainActivity extends Activity {
         ZonedDateTime unlockTime =
                 newsTime.minusHours(2);
 
-
         if (current.isBefore(unlockTime)) {
 
             String jamBuka =
@@ -431,7 +425,6 @@ public class MainActivity extends Activity {
 
         return null;
     }
-
 
     // =========================
     // CEK UNLOCK
@@ -474,7 +467,6 @@ public class MainActivity extends Activity {
 
         startTimer();
     }
-
 
     // =========================
     // TIMER
@@ -527,7 +519,6 @@ public class MainActivity extends Activity {
         }.start();
     }
 
-
     // =========================
     // LOCK KEMBALI
     // =========================
@@ -570,7 +561,6 @@ public class MainActivity extends Activity {
         sl.setText("");
     }
 
-
     // =========================
     // RESTORE STATUS
     // =========================
@@ -604,7 +594,6 @@ public class MainActivity extends Activity {
             lock();
         }
     }
-
 
     // =========================
     // BUKA MT5
