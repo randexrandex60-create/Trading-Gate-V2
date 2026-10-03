@@ -1349,6 +1349,25 @@ public class MainActivity extends Activity {
         return n;
     }
 
+    CheckBox check(String label) {
+        CheckBox c = new CheckBox(this);
+        c.setText(label);
+        c.setTextColor(WHITE);
+        c.setTextSize(12);
+        c.setButtonTintList(new ColorStateList(
+                new int[][]{
+                        new int[]{android.R.attr.state_checked},
+                        new int[]{}
+                },
+                new int[]{
+                        PINK_SOFT,
+                        MUTED
+                }
+        ));
+        c.setPadding(0, dp(5), 0, dp(5));
+        return c;
+    }
+
     // =========================================================
     // MT5
     // =========================================================
