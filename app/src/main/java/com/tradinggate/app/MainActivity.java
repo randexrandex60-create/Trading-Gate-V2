@@ -264,11 +264,71 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(BG);
 
-        content = new FrameLayout(this);
-        content.setBackgroundColor(BG);
+      content = new FrameLayout(this);
 
-        root.addView(content,
-                new LinearLayout.LayoutParams(-1, 0, 1));
+android.widget.FrameLayout backgroundLayer =
+        new android.widget.FrameLayout(this);
+
+// BACKGROUND
+android.widget.ImageView background =
+        new android.widget.ImageView(this);
+
+background.setImageResource(
+        R.drawable.trading_gate_background
+);
+
+background.setScaleType(
+        android.widget.ImageView.ScaleType.CENTER_CROP
+);
+
+background.setAlpha(0.22f);
+
+backgroundLayer.addView(
+        background,
+        new android.widget.FrameLayout.LayoutParams(
+                -1,
+                -1
+        )
+);
+
+// DARK OVERLAY
+android.view.View darkOverlay =
+        new android.view.View(this);
+
+darkOverlay.setBackgroundColor(
+        android.graphics.Color.argb(
+                150,
+                0,
+                0,
+                0
+        )
+);
+
+backgroundLayer.addView(
+        darkOverlay,
+        new android.widget.FrameLayout.LayoutParams(
+                -1,
+                -1
+        )
+);
+
+// CONTENT DI ATAS BACKGROUND
+backgroundLayer.addView(
+        content,
+        new android.widget.FrameLayout.LayoutParams(
+                -1,
+                -1
+        )
+);
+
+root.addView(
+        backgroundLayer,
+        new LinearLayout.LayoutParams(
+                -1,
+                0,
+                1
+        )
+);
 
         buildBottomNav();
 
