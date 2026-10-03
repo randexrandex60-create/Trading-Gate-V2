@@ -148,6 +148,7 @@ public class MainActivity extends Activity {
        
             showingIntro = true;
             showLanding();
+    }
     
     @Override
     protected void onResume() {
