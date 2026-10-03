@@ -1637,7 +1637,9 @@ p.addView(
     }
 }
 
-        GateHeroView(Context c) {
+   class GateHeroView extends View {
+    Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    Path path = new Path();     GateHeroView(Context c) {
             super(c);
             setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         }
