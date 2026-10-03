@@ -398,7 +398,7 @@ root.addView(
     ScrollView pageScroll() {
         ScrollView s = new ScrollView(this);
         s.setFillViewport(true);
-        s.setBackgroundColor(BG);
+        s.setBackgroundColor(android.graphics.Color.TRANSPARENT);
         return s;
     }
 
