@@ -8,7 +8,13 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.Typeface;
+import android.graphics.LinearGradient;
+import android.graphics.Shader;
 import android.graphics.drawable.GradientDrawable;
 import android.provider.Settings;
 import android.view.Gravity;
@@ -84,6 +90,7 @@ public class MainActivity extends Activity {
     boolean conditionOk = false;
 
     CountDownTimer timer;
+    boolean showingIntro = false;
 
     final DateTimeFormatter DATE_KEY =
             DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US);
@@ -137,9 +144,14 @@ public class MainActivity extends Activity {
         checkDailyReset();
 
         buildShell();
-        showHome();
 
-        restoreSession();
+        if (!pref.getBoolean("intro_seen", false)) {
+            showingIntro = true;
+            showLanding();
+        } else {
+            showHome();
+            restoreSession();
+        }
     }
 
     @Override
@@ -147,8 +159,13 @@ public class MainActivity extends Activity {
         super.onResume();
         if (pref != null) {
             checkDailyReset();
-            refreshHome();
-            restoreSession();
+            if (!showingIntro) {
+                if (isSessionActive()) {
+                    showActiveSession();
+                } else {
+                    refreshHome();
+                }
+            }
         }
     }
 
@@ -282,6 +299,7 @@ public class MainActivity extends Activity {
         TextView n = centerText(label, 10, MUTED);
         n.setGravity(Gravity.CENTER);
         n.setPadding(0, dp(4), 0, dp(2));
+        n.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
 
         LinearLayout.LayoutParams lp =
                 new LinearLayout.LayoutParams(0, -1, 1);
@@ -294,6 +312,27 @@ public class MainActivity extends Activity {
             if (page == 2) showHistory();
             if (page == 3) showSettings();
         });
+    }
+
+    void selectNav(int page) {
+        if (bottomNav == null) return;
+        for (int i = 0; i < bottomNav.getChildCount(); i++) {
+            View v = bottomNav.getChildAt(i);
+            if (v instanceof TextView) {
+                TextView t = (TextView) v;
+                t.setTextColor(i == page ? PINK_SOFT : MUTED);
+                t.setTypeface(Typeface.DEFAULT, i == page
+                        ? Typeface.BOLD : Typeface.NORMAL);
+            }
+        }
+    }
+
+    void hideBottomNav() {
+        if (bottomNav != null) bottomNav.setVisibility(View.GONE);
+    }
+
+    void showBottomNav() {
+        if (bottomNav != null) bottomNav.setVisibility(View.VISIBLE);
     }
 
     void clearContent() {
@@ -315,33 +354,90 @@ public class MainActivity extends Activity {
     }
 
     void pageHeader(LinearLayout p, String subtitle) {
-        TextView brand = centerText("TRADING GATE", 22, WHITE);
+        TextView brand = centerText("TRADING GATE", 20, WHITE);
         brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        brand.setLetterSpacing(.08f);
         p.addView(brand);
 
-        TextView sub = centerText(subtitle, 10, PINK);
-        sub.setLetterSpacing(.18f);
-        sub.setPadding(0, dp(2), 0, dp(15));
+        TextView sub = centerText(subtitle, 9, PINK);
+        sub.setLetterSpacing(.22f);
+        sub.setPadding(0, dp(2), 0, dp(13));
         p.addView(sub);
+    }
+
+    TextView smallLabel(String value) {
+        TextView v = text(value, 9);
+        v.setTextColor(MUTED);
+        v.setLetterSpacing(.08f);
+        return v;
     }
 
     // =========================================================
     // HOME
     // =========================================================
 
-    void showHome() {
+    void showLanding() {
+        showingIntro = true;
         clearContent();
+        hideBottomNav();
+
+        ScrollView scroll = pageScroll();
+        LinearLayout p = pageRoot();
+        p.setPadding(0, 0, 0, dp(18));
+
+        GateHeroView hero = new GateHeroView(this);
+        p.addView(hero, new LinearLayout.LayoutParams(-1, dp(560)));
+
+        TextView brand = centerText("TRADING", 27, WHITE);
+        brand.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        brand.setLetterSpacing(.16f);
+        p.addView(brand);
+
+        TextView gate = centerText("GATE", 31, PINK_SOFT);
+        gate.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        gate.setLetterSpacing(.12f);
+        p.addView(gate);
+
+        TextView sub = centerText("D I S C I P L I N E   S Y S T E M", 9, PINK_SOFT);
+        sub.setPadding(0, dp(4), 0, dp(12));
+        p.addView(sub);
+
+        TextView motto = centerText("NO SETUP. NO ENTRY.", 10, WHITE);
+        motto.setLetterSpacing(.18f);
+        motto.setPadding(0, dp(6), 0, dp(16));
+        p.addView(motto);
+
+        Button start = pinkButton("MULAI   ›");
+        LinearLayout.LayoutParams lp =
+                new LinearLayout.LayoutParams(-1, dp(54));
+        lp.setMargins(dp(24), 0, dp(24), 0);
+        p.addView(start, lp);
+
+        start.setOnClickListener(v -> {
+            pref.edit().putBoolean("intro_seen", true).apply();
+            showingIntro = false;
+            showHome();
+        });
+
+        scroll.addView(p);
+        content.addView(scroll);
+    }
+
+    void showHome() {
+        showingIntro = false;
+        clearContent();
+        showBottomNav();
+        selectNav(0);
 
         ScrollView scroll = pageScroll();
         LinearLayout p = pageRoot();
 
         pageHeader(p, "DISCIPLINE SYSTEM");
 
-        // Date
         LinearLayout date = card();
         date.setPadding(dp(14), dp(11), dp(14), dp(11));
         TextView d = text(
-                ZonedDateTime.now(ZoneId.of(TZ))
+                "▣   " + ZonedDateTime.now(ZoneId.of(TZ))
                         .format(DateTimeFormatter.ofPattern(
                                 "EEEE, d MMM yyyy", Locale.US)),
                 12);
@@ -349,19 +445,17 @@ public class MainActivity extends Activity {
         date.addView(d);
         p.addView(date);
 
-        // Status
         LinearLayout statusCard = card();
+        statusCard.setPadding(dp(15), dp(13), dp(15), dp(13));
         statusCard.setBackground(
-                rounded(Color.rgb(28, 16, 23), Color.rgb(112, 53, 77), 1, 18));
+                rounded(Color.rgb(29, 16, 24), Color.rgb(121, 56, 82), 1, 18));
 
-        TextView sc = text("STATUS GATE", 11);
+        TextView sc = smallLabel("STATUS GATE");
         sc.setTextColor(PINK_SOFT);
-
         homeStatus = text("READY", 27);
         homeStatus.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         homeStatus.setTextColor(PINK_SOFT);
-
-        homeStatusSub = text("Siap untuk membuka Gate", 12);
+        homeStatusSub = text("Siap untuk membuka Gate", 11);
         homeStatusSub.setTextColor(WHITE);
 
         statusCard.addView(sc);
@@ -369,62 +463,34 @@ public class MainActivity extends Activity {
         statusCard.addView(homeStatusSub);
         p.addView(statusCard);
 
-        // Stats
         LinearLayout stats = new LinearLayout(this);
         stats.setOrientation(LinearLayout.HORIZONTAL);
 
-        LinearLayout a = card();
-        a.setPadding(dp(12), dp(11), dp(12), dp(11));
-        TextView at = text("AKSES HARI INI", 9);
-        at.setTextColor(MUTED);
-        accessValue = text(accessCount() + " / " + MAX_ACCESS, 21);
-        accessValue.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        accessValue.setTextColor(PINK_SOFT);
-        a.addView(at);
-        a.addView(accessValue);
+        LinearLayout a = statCard("AKSES HARI INI",
+                accessCount() + " / " + MAX_ACCESS);
+        LinearLayout slc = statCard("SL HARI INI",
+                slCount() + " / " + MAX_SL);
 
-        LinearLayout s = card();
-        s.setPadding(dp(12), dp(11), dp(12), dp(11));
-        TextView st = text("SL HARI INI", 9);
-        st.setTextColor(MUTED);
-        slValue = text(slCount() + " / " + MAX_SL, 21);
-        slValue.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        slValue.setTextColor(PINK_SOFT);
-        s.addView(st);
-        s.addView(slValue);
-
-        LinearLayout.LayoutParams h1 =
-                new LinearLayout.LayoutParams(0, -2, 1);
-        h1.setMargins(0, 0, dp(5), dp(12));
-
-        LinearLayout.LayoutParams h2 =
-                new LinearLayout.LayoutParams(0, -2, 1);
-        h2.setMargins(dp(5), 0, 0, dp(12));
-
-        stats.addView(a, h1);
-        stats.addView(s, h2);
+        stats.addView(a, halfParams(false));
+        stats.addView(slc, halfParams(true));
         p.addView(stats);
 
-        // Reset
         LinearLayout reset = card();
-        TextView rt = text("◷  RESET HARIAN", 10);
+        TextView rt = smallLabel("◷  RESET HARIAN");
         rt.setTextColor(PINK);
-        resetValue = text(nextResetText(), 13);
+        resetValue = text(nextResetText(), 12);
         resetValue.setTextColor(WHITE);
         reset.addView(rt);
         reset.addView(resetValue);
         p.addView(reset);
 
-        // Main action
         homeOpenButton = pinkButton("BUKA GATE   ›");
         LinearLayout.LayoutParams bp =
                 new LinearLayout.LayoutParams(-1, dp(55));
-        bp.setMargins(0, dp(2), 0, dp(10));
+        bp.setMargins(0, dp(2), 0, dp(9));
         p.addView(homeOpenButton, bp);
-
         homeOpenButton.setOnClickListener(v -> openGateFlow());
 
-        // If active, show session button instead
         if (isSessionActive()) {
             homeOpenButton.setText("SESI AKTIF   ›");
             homeOpenButton.setOnClickListener(v -> showActiveSession());
@@ -436,9 +502,8 @@ public class MainActivity extends Activity {
         }
 
         TextView motto = centerText(
-                "NO SETUP. NO ENTRY.\nPLAN YOUR TRADE. TRADE YOUR PLAN.",
-                10, MUTED);
-        motto.setPadding(0, dp(8), 0, 0);
+                "NO SETUP. NO ENTRY.", 9, MUTED);
+        motto.setLetterSpacing(.16f);
         p.addView(motto);
 
         scroll.addView(p);
@@ -468,6 +533,8 @@ public class MainActivity extends Activity {
 
     void showChecklist() {
         clearContent();
+        showBottomNav();
+        selectNav(1);
 
         ScrollView scroll = pageScroll();
         LinearLayout p = pageRoot();
@@ -538,7 +605,7 @@ public class MainActivity extends Activity {
         cp.setMargins(0, dp(10), 0, dp(10));
         p.addView(confirmButton, cp);
 
-        confirmButton.setOnClickListener(v -> attemptOpenGate());
+        confirmButton.setOnClickListener(v -> showConfirmation());
 
         scroll.addView(p);
         content.addView(scroll);
@@ -914,6 +981,80 @@ public class MainActivity extends Activity {
     }
 
     // =========================================================
+    // CONFIRMATION
+    // =========================================================
+
+    void showConfirmation() {
+        clearContent();
+        showBottomNav();
+        selectNav(1);
+
+        ScrollView scroll = pageScroll();
+        LinearLayout p = pageRoot();
+
+        pageHeader(p, "KONFIRMASI");
+
+        LinearLayout c = card();
+        String[][] rows = {
+                {"Kondisi Diri", conditionOk ? "OK" : "BELUM"},
+                {"Analisis HTF", (h4Ok() && h2Ok() && h1Ok()) ? "H4 / H2 / H1" : "BELUM"},
+                {"News Check", newsChecked ? "OK" : "BELUM"},
+                {"Liquidity", liquidity ? "OK" : "BELUM"},
+                {"CISD", cisd ? "OK" : "BELUM"},
+                {"Entry Plan", planComplete() ? direction + " • " + zone + " • " + timeframe : "BELUM"},
+                {"Risk Management", rr.isEmpty() ? "BELUM" : "RR " + rr}
+        };
+
+        for (String[] row : rows) {
+            LinearLayout line = new LinearLayout(this);
+            line.setGravity(Gravity.CENTER_VERTICAL);
+            line.setPadding(dp(4), dp(7), dp(4), dp(7));
+
+            boolean ok = !"BELUM".equals(row[1]);
+            TextView dot = centerText(ok ? "✓" : "!", 13,
+                    ok ? Color.rgb(35,20,27) : WHITE);
+            dot.setBackground(rounded(
+                    ok ? PINK_SOFT : Color.rgb(65, 50, 57),
+                    ok ? PINK_SOFT : BORDER, 1, 20));
+            line.addView(dot, new LinearLayout.LayoutParams(dp(30), dp(30)));
+
+            TextView name = text(row[0], 12);
+            name.setPadding(dp(10), 0, 0, 0);
+            line.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
+
+            TextView value = text(row[1], 10);
+            value.setTextColor(ok ? PINK_SOFT : MUTED);
+            line.addView(value);
+
+            c.addView(line);
+        }
+        p.addView(c);
+
+        LinearLayout note = card();
+        note.setGravity(Gravity.CENTER);
+        TextView n = centerText(
+                "Semua checklist harus sesuai.\n" +
+                "Setelah dibuka, Gate aktif selama 15 menit.",
+                11, WHITE);
+        note.addView(n);
+        p.addView(note);
+
+        Button open = pinkButton("CEK & BUKA GATE   🔒");
+        p.addView(open, new LinearLayout.LayoutParams(-1, dp(55)));
+        open.setOnClickListener(v -> attemptOpenGate());
+
+        Button back = button("‹  KEMBALI");
+        LinearLayout.LayoutParams bp =
+                new LinearLayout.LayoutParams(-1, dp(46));
+        bp.topMargin = dp(9);
+        p.addView(back, bp);
+        back.setOnClickListener(v -> showChecklist());
+
+        scroll.addView(p);
+        content.addView(scroll);
+    }
+
+    // =========================================================
     // GATE FLOW
     // =========================================================
 
@@ -1036,47 +1177,35 @@ public class MainActivity extends Activity {
 
     void showActiveSession() {
         clearContent();
+        showBottomNav();
+        selectNav(0);
 
         ScrollView scroll = pageScroll();
         LinearLayout p = pageRoot();
 
         pageHeader(p, "SESI AKTIF");
 
-        LinearLayout timerCard = card();
-        timerCard.setGravity(Gravity.CENTER);
-        timerCard.setBackground(
-                rounded(Color.rgb(26, 14, 22), Color.rgb(113, 52, 78), 1, 20));
+        TimerRingView ring = new TimerRingView(this);
+        p.addView(ring, new LinearLayout.LayoutParams(-1, dp(250)));
 
-        sessionStatus = centerText("TRADING SESSION ACTIVE", 11, PINK_SOFT);
-        sessionStatus.setPadding(0, dp(5), 0, dp(8));
-
-        sessionTimer = centerText("15:00", 42, WHITE);
-        sessionTimer.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-
-        TextView cap = centerText("SISA WAKTU / 15:00", 10, MUTED);
-
-        timerCard.addView(sessionStatus);
-        timerCard.addView(sessionTimer);
-        timerCard.addView(cap);
-        p.addView(timerCard);
+        sessionStatus = centerText("TRADING SESSION ACTIVE", 10, PINK_SOFT);
+        sessionStatus.setLetterSpacing(.12f);
+        p.addView(sessionStatus);
 
         LinearLayout stats = new LinearLayout(this);
         stats.setOrientation(LinearLayout.HORIZONTAL);
-
         stats.addView(statCard("AKSES HARI INI",
                 accessCount() + " / " + MAX_ACCESS), halfParams(false));
-
         stats.addView(statCard("SL HARI INI",
                 slCount() + " / " + MAX_SL), halfParams(true));
-
         p.addView(stats);
 
         LinearLayout active = card();
-        TextView at = text("⌁  GATE AKTIF", 12);
+        TextView at = smallLabel("◷  SESI DIMULAI / AUTO LOCK");
         at.setTextColor(PINK);
         TextView ap = text(
-                "MT5 dapat dibuka selama sesi berlangsung.\n" +
-                "Saat waktu habis, Gate otomatis terkunci.",
+                "Gate aktif berdasarkan waktu nyata.\n" +
+                "Menutup aplikasi tidak menghentikan timer.",
                 11);
         ap.setTextColor(MUTED);
         ap.setPadding(0, dp(5), 0, 0);
@@ -1085,22 +1214,21 @@ public class MainActivity extends Activity {
         p.addView(active);
 
         mt5Button = pinkButton("BUKA MT5   ›");
-        p.addView(mt5Button,
-                new LinearLayout.LayoutParams(-1, dp(54)));
+        p.addView(mt5Button, new LinearLayout.LayoutParams(-1, dp(54)));
         mt5Button.setOnClickListener(v -> open());
 
-        Button back = button("KEMBALI KE HOME");
-        LinearLayout.LayoutParams bp =
-                new LinearLayout.LayoutParams(-1, dp(48));
-        bp.topMargin = dp(9);
-        p.addView(back, bp);
-        back.setOnClickListener(v -> showHome());
+        TextView focus = centerText(
+                "FOKUS. IKUTI PLAN. DISIPLIN.", 9, MUTED);
+        focus.setLetterSpacing(.12f);
+        focus.setPadding(0, dp(12), 0, 0);
+        p.addView(focus);
 
         scroll.addView(p);
         content.addView(scroll);
 
-        startSessionTimer();
+        startSessionTimer(ring);
     }
+
 
     LinearLayout.LayoutParams halfParams(boolean right) {
         LinearLayout.LayoutParams lp =
@@ -1125,6 +1253,10 @@ public class MainActivity extends Activity {
     }
 
     void startSessionTimer() {
+        startSessionTimer(null);
+    }
+
+    void startSessionTimer(TimerRingView ring) {
         if (timer != null) timer.cancel();
 
         long left = pref.getLong("session_until", 0)
@@ -1142,18 +1274,20 @@ public class MainActivity extends Activity {
                 long min = sec / 60;
                 long rem = sec % 60;
 
-                if (sessionTimer != null) {
-                    sessionTimer.setText(String.format(
-                            Locale.US, "%02d:%02d", min, rem));
-                }
+                String value = String.format(Locale.US, "%02d:%02d", min, rem);
+
+                if (sessionTimer != null) sessionTimer.setText(value);
+                if (ring != null) ring.setRemaining(ms, value);
             }
 
             @Override
             public void onFinish() {
+                if (ring != null) ring.setRemaining(0, "00:00");
                 lockSession();
             }
         }.start();
     }
+
 
     void lockSession() {
         if (timer != null) timer.cancel();
@@ -1170,6 +1304,8 @@ public class MainActivity extends Activity {
 
     void showLockedToday(String message) {
         clearContent();
+        showBottomNav();
+        selectNav(0);
 
         LinearLayout p = pageRoot();
         pageHeader(p, "GATE TERKUNCI");
@@ -1222,6 +1358,8 @@ public class MainActivity extends Activity {
 
     void showHistory() {
         clearContent();
+        showBottomNav();
+        selectNav(2);
 
         ScrollView scroll = pageScroll();
         LinearLayout p = pageRoot();
@@ -1267,6 +1405,8 @@ public class MainActivity extends Activity {
 
     void showSettings() {
         clearContent();
+        showBottomNav();
+        selectNav(3);
 
         LinearLayout p = pageRoot();
         pageHeader(p, "PENGATURAN");
@@ -1366,6 +1506,155 @@ public class MainActivity extends Activity {
         ));
         c.setPadding(0, dp(5), 0, dp(5));
         return c;
+    }
+
+    // =========================================================
+    // CUSTOM VISUALS
+    // =========================================================
+
+    class GateHeroView extends View {
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        Path path = new Path();
+
+        GateHeroView(Context c) {
+            super(c);
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+
+        @Override
+        protected void onDraw(Canvas c) {
+            super.onDraw(c);
+            float w = getWidth();
+            float h = getHeight();
+
+            paint.setShader(new LinearGradient(
+                    0, 0, 0, h,
+                    Color.rgb(8, 9, 12),
+                    Color.rgb(20, 8, 18),
+                    Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, w, h, paint);
+            paint.setShader(null);
+
+            // soft atmospheric glow
+            paint.setColor(Color.rgb(75, 25, 54));
+            paint.setAlpha(70);
+            paint.setMaskFilter(new android.graphics.BlurMaskFilter(
+                    dp(38), android.graphics.BlurMaskFilter.Blur.NORMAL));
+            c.drawCircle(w * .50f, h * .53f, dp(75), paint);
+            paint.setMaskFilter(null);
+            paint.setAlpha(255);
+
+            // mountains
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.rgb(17, 18, 22));
+            path.reset();
+            path.moveTo(0, h * .82f);
+            path.lineTo(w * .20f, h * .48f);
+            path.lineTo(w * .32f, h * .73f);
+            path.lineTo(w * .48f, h * .38f);
+            path.lineTo(w * .64f, h * .70f);
+            path.lineTo(w * .82f, h * .50f);
+            path.lineTo(w, h * .78f);
+            path.lineTo(w, h);
+            path.lineTo(0, h);
+            path.close();
+            c.drawPath(path, paint);
+
+            // portal glow
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(7));
+            paint.setColor(PINK);
+            paint.setShadowLayer(dp(24), 0, 0, PINK);
+            RectF oval = new RectF(
+                    w * .38f, h * .35f,
+                    w * .62f, h * .77f);
+            c.drawRoundRect(oval, dp(60), dp(60), paint);
+            paint.clearShadowLayer();
+
+            paint.setStrokeWidth(dp(2));
+            paint.setColor(PINK_SOFT);
+            c.drawRoundRect(
+                    new RectF(w * .395f, h * .365f,
+                            w * .605f, h * .755f),
+                    dp(55), dp(55), paint);
+
+            // tiny particles
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.rgb(255, 174, 202));
+            for (int i = 0; i < 16; i++) {
+                float x = (w * ((i * 37) % 100)) / 100f;
+                float y = h * (.12f + ((i * 17) % 60) / 100f);
+                c.drawCircle(x, y, dp(1), paint);
+            }
+
+            // small mark
+            paint.setColor(PINK_SOFT);
+            path.reset();
+            float cx = w / 2f, cy = h * .56f;
+            path.moveTo(cx, cy - dp(13));
+            path.cubicTo(cx - dp(13), cy - dp(5),
+                    cx - dp(13), cy + dp(5),
+                    cx, cy + dp(13));
+            path.cubicTo(cx + dp(13), cy + dp(5),
+                    cx + dp(13), cy - dp(5),
+                    cx, cy - dp(13));
+            path.close();
+            c.drawPath(path, paint);
+        }
+    }
+
+    class TimerRingView extends View {
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        String value = "15:00";
+        float progress = 1f;
+
+        TimerRingView(Context c) {
+            super(c);
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+
+        void setRemaining(long ms, String text) {
+            value = text;
+            progress = Math.max(0f, Math.min(1f,
+                    ms / (float) SESSION_MS));
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas c) {
+            super.onDraw(c);
+            float cx = getWidth() / 2f;
+            float cy = getHeight() / 2f;
+            float r = Math.min(getWidth(), getHeight()) * .37f;
+
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(7));
+            paint.setColor(Color.rgb(50, 31, 42));
+            c.drawCircle(cx, cy, r, paint);
+
+            paint.setColor(PINK);
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setShadowLayer(dp(15), 0, 0, PINK);
+            c.drawArc(new RectF(cx-r, cy-r, cx+r, cy+r),
+                    -90, 360f * progress, false, paint);
+            paint.clearShadowLayer();
+            paint.setStrokeCap(Paint.Cap.BUTT);
+
+            paint.setStyle(Paint.Style.FILL);
+            TextPaintHelper(c, "SISA WAKTU", cx, cy - dp(30), 10, MUTED);
+            TextPaintHelper(c, value, cx, cy + dp(10), 34, WHITE);
+            TextPaintHelper(c, "/ 15:00", cx, cy + dp(36), 11, PINK_SOFT);
+        }
+
+        void TextPaintHelper(Canvas c, String t, float x, float y,
+                             float size, int color) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(color);
+            paint.setTextSize(dp((int)size));
+            paint.setTypeface(Typeface.DEFAULT);
+            paint.setTextAlign(Paint.Align.CENTER);
+            c.drawText(t, x, y, paint);
+        }
     }
 
     // =========================================================
